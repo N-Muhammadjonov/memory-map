@@ -1,0 +1,165 @@
+name: Build and release Memory map
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {os: windows-2022, name: MemoryMap-windows-x64, binary: dist/MemoryMap.exe}
+          - {os: macos-15, name: MemoryMap-macos-arm64, binary: dist/MemoryMap}
+          - {os: macos-15-intel, name: MemoryMap-macos-x64, binary: dist/MemoryMap}
+          - {os: ubuntu-22.04, name: MemoryMap-linux-x64, binary: dist/MemoryMap}
+          - {os: ubuntu-24.04-arm, name: MemoryMap-linux-arm64, binary: dist/MemoryMap}
+    runs-on: ${{ matrix.os }}
+    env:
+      WINDOWS_CERT_BASE64: ${{ secrets.WINDOWS_CERT_BASE64 }}
+      WINDOWS_CERT_PASSWORD: ${{ secrets.WINDOWS_CERT_PASSWORD }}
+      APPLE_CERT_BASE64: ${{ secrets.APPLE_CERT_BASE64 }}
+      APPLE_CERT_PASSWORD: ${{ secrets.APPLE_CERT_PASSWORD }}
+      APPLE_SIGN_IDENTITY: ${{ secrets.APPLE_SIGN_IDENTITY }}
+      APPLE_ID: ${{ secrets.APPLE_ID }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        if: matrix.name == 'MemoryMap-linux-x64'
+        with:
+          node-version: "22"
+      - run: python -m pip install pyinstaller==6.22.3 -r requirements.txt
+      - run: python -m unittest discover -s tests
+      - if: matrix.name == 'MemoryMap-linux-x64'
+        run: node --test --experimental-default-type=module tests/*.mjs stats-worker/worker.test.mjs
+      - name: Bake public service configuration
+        env:
+          XOTIRA_STATS_URL: ${{ vars.XOTIRA_STATS_URL }}
+          XOTIRA_GITHUB_REPO: ${{ github.repository }}
+          XOTIRA_AUTH_URL: ${{ vars.XOTIRA_AUTH_URL }}
+          XOTIRA_AUTH_KEY: ${{ vars.XOTIRA_AUTH_KEY }}
+          XOTIRA_AUTH_SITE_URL: ${{ vars.XOTIRA_AUTH_SITE_URL }}
+        run: python scripts/build_configuration.py
+      - run: pyinstaller --noconfirm --clean xotira.spec
+      - name: Sign (Windows) when publisher certificate is configured
+        if: runner.os == 'Windows' && env.WINDOWS_CERT_BASE64 != ''
+        shell: pwsh
+        run: |
+          [IO.File]::WriteAllBytes("cert.pfx", [Convert]::FromBase64String($env:WINDOWS_CERT_BASE64))
+          $tool = (Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\bin\*\x64\signtool.exe" | Select-Object -Last 1).FullName
+          & $tool sign /f cert.pfx /p $env:WINDOWS_CERT_PASSWORD /fd SHA256 /tr https://timestamp.digicert.com /td SHA256 dist\MemoryMap.exe
+          if ($LASTEXITCODE -ne 0) { throw "Signing failed" }
+          Remove-Item cert.pfx
+      - name: Sign and notarize (macOS) when publisher certificate is configured
+        if: runner.os == 'macOS' && env.APPLE_CERT_BASE64 != ''
+        run: |
+          echo "$APPLE_CERT_BASE64" | base64 --decode > cert.p12
+          security create-keychain -p ci build.keychain
+          security default-keychain -s build.keychain
+          security unlock-keychain -p ci build.keychain
+          security import cert.p12 -k build.keychain -P "$APPLE_CERT_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple: -s -k ci build.keychain
+          codesign --force --options runtime --timestamp --sign "$APPLE_SIGN_IDENTITY" dist/MemoryMap
+          ditto -c -k dist/MemoryMap notarize.zip
+          xcrun notarytool submit notarize.zip --apple-id "$APPLE_ID" --team-id "$APPLE_TEAM_ID" --password "$APPLE_APP_PASSWORD" --wait
+          rm cert.p12 notarize.zip
+      - run: python tests/smoke_binary.py ${{ matrix.binary }}
+      - name: Package release assets
+        run: python scripts/package_desktop.py "${{ matrix.name }}" "${{ matrix.binary }}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.name }}
+          path: out/*
+          if-no-files-found: error
+
+  android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.9"
+      - name: Bake public service configuration
+        env:
+          XOTIRA_STATS_URL: ${{ vars.XOTIRA_STATS_URL }}
+          XOTIRA_GITHUB_REPO: ${{ github.repository }}
+          XOTIRA_AUTH_URL: ${{ vars.XOTIRA_AUTH_URL }}
+          XOTIRA_AUTH_KEY: ${{ vars.XOTIRA_AUTH_KEY }}
+          XOTIRA_AUTH_SITE_URL: ${{ vars.XOTIRA_AUTH_SITE_URL }}
+        run: python scripts/build_configuration.py
+      - run: python scripts/prepare_android.py
+      - run: gradle -p android :app:testDebugUnitTest :app:assembleDebug :app:assembleDebugAndroidTest
+      - name: Enable KVM for Android emulator
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Verify Android vault on an emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          arch: x86_64
+          target: google_apis
+          script: gradle -p android :app:connectedDebugAndroidTest
+      - name: Sign Android distributive
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          ANDROID_KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+          MEMORYMAP_ANDROID_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        run: |
+          test -n "$ANDROID_KEYSTORE_B64"
+          test -n "$MEMORYMAP_ANDROID_PASSWORD"
+          export MEMORYMAP_ANDROID_KEYSTORE="$RUNNER_TEMP/memorymap.p12"
+          echo "$ANDROID_KEYSTORE_B64" | base64 --decode > "$MEMORYMAP_ANDROID_KEYSTORE"
+          chmod 600 "$MEMORYMAP_ANDROID_KEYSTORE"
+          gradle -p android :app:assembleRelease
+          rm -f "$MEMORYMAP_ANDROID_KEYSTORE"
+          mkdir -p out
+          cp android/app/build/outputs/apk/release/app-release.apk out/MemoryMap-android.apk
+      - uses: actions/upload-artifact@v4
+        if: startsWith(github.ref, 'refs/tags/v')
+        with:
+          name: MemoryMap-android
+          path: out/MemoryMap-android.apk
+          if-no-files-found: error
+
+  release:
+    needs: [build, android]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: out
+          merge-multiple: true
+      - name: Manifest of exact distributive checksums
+        run: |
+          cd out
+          sha256sum MemoryMap-* > SHA256SUMS.txt
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: out/*
+          fail_on_unmatched_files: true
+          generate_release_notes: true
+          draft: true

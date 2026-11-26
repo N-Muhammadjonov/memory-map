@@ -1,0 +1,12 @@
+name = "xotira-stats"
+main = "worker.js"
+compatibility_date = "2025-01-01"
+
+# 1) wrangler d1 create xotira-stats        -> copy the database_id below
+# 2) wrangler d1 execute xotira-stats --remote --file=schema.sql
+# 3) wrangler secret put ADMIN_TOKEN        -> a long random string only you know
+# 4) wrangler deploy
+[[d1_databases]]
+binding = "DB"
+database_name = "xotira-stats"
+database_id = "REPLACE_WITH_YOUR_D1_ID"

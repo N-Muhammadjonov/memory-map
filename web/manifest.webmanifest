@@ -1,0 +1,9 @@
+{
+  "name": "Memory map — Encrypted Knowledge Workspace",
+  "short_name": "Memory map",
+  "description": "Local-first AES-256 encrypted 3D brain map, block editor, databases, flashcards, and AI Brain.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#17181c",
+  "theme_color": "#6947c9"
+}
