@@ -1,26 +1,31 @@
-# Platformalar: nima bor, nima yo‘q va yo‘l xaritasi (v27)
+# Memory map distribution
 
-## Hozir (tekshirilgan)
-| Platforma | Holat |
+The installed application keeps an encrypted vault on the user's device. Desktop
+install bundles run their own loopback service and open the existing workspace
+without requiring a user to install Python. Android embeds the same Python
+workspace with an Android-native cryptographic backend and a foreground
+service.
+
+| Platform | Release asset |
 |---|---|
-| Linux | Dastur qurilgan va brauzerda tekshirilgan (`tests/smoke_binary.py`). |
-| Windows | Kod moslangan (blokirovka, papka, `start.bat`), workflow bor. Haqiqiy Windows'da sinalmagan. |
-| macOS | Workflow bor. Sinalmagan. Imzosiz dastur: «noma'lum dasturchi» ogohlantirishi chiqadi. |
-| Android / iPhone | **Yo‘q.** Hozirgi ilova kompyuterda Python serveri bilan ishlaydi; telefonda bunday server ishlamaydi. |
+| Windows x64 | MemoryMap-windows-x64.exe |
+| macOS Apple Silicon | MemoryMap-macos-arm64.zip (application bundle) |
+| macOS Intel | MemoryMap-macos-x64.zip (application bundle) |
+| Linux x64 | MemoryMap-linux-x64.tar.gz |
+| Linux ARM64 | MemoryMap-linux-arm64.tar.gz |
+| Android ARM64 and x86_64 (Android 7.0+) | MemoryMap-android.apk |
+| iOS / iPadOS | A separate native port and Apple distribution are required |
 
-Foydalanuvchi uchun oqim: GitHub Releases → «Download» (`site/index.html` sahifasi to‘g‘ri faylni topib beradi) → ikki marta bosish. Hozircha dastur ochilganda konsol oynasi ham chiqadi; yopsangiz dastur to‘xtaydi.
+The GitHub Actions workflow builds and tests the desktop binaries on the
+matching platform. Android must pass its cryptography known-answer checks and
+emulator vault checks. Only the verified public release is advertised on the
+[download website](https://memory-map-ecru.vercel.app/).
 
-## Telefon: haqiqat
-- **iPhone'ga GitHub'dan o‘rnatib bo‘lmaydi.** iOS faqat App Store yoki TestFlight (Apple Developer, yiliga $99) orqali o‘rnatadi. Arzon yo‘l: veb-ilova (PWA) — Safari'da havola ochilib «Add to Home Screen».
-- **Android** APK'ni GitHub'dan yuklab o‘rnatish mumkin (sideload), lekin avval ilovaning yadrosi telefonda ishlashi kerak.
-- Ikkalasi uchun ham **yadroni brauzerda ishlaydigan qilish** kerak: shifrlash (WebCrypto + Argon2id WASM), saqlash (IndexedDB/SQLite-WASM) va hozirgi Python serverining mantig‘i (qaydlar, graf, qidiruv, import, ulashish) JavaScript/TypeScript'ga ko‘chiriladi. UI deyarli o‘zgarmaydi: `/api/*` so‘rovlarini kutubxona brauzer ichida javoblaydi. Bu katta ish (bir necha sessiya), lekin shundan keyin bitta kod Cloudflare Pages'da PWA bo‘lib, Capacitor orqali Android APK va iOS (TestFlight) bo‘ladi.
+Desktop users may turn on verified automatic updates. The app matches the
+platform and architecture, verifies the official GitHub asset digest, and
+stages a newer executable for a subsequent launch. Android updates use APKs
+with the same application ID and signing identity and the system's approval
+flow. See [PUBLIC_RELEASE.md](PUBLIC_RELEASE.md) for the rollout checklist.
 
-## Xizmatlar
-- **Cloudflare** yetarli: Pages (sayt + PWA), Workers + D1 (statistika), R2 (kerak bo‘lsa fayllar). Vercel qo‘shimcha qiymat bermaydi, ikki sotuvchi murakkablik qo‘shadi.
-- **Supabase** hozir kerak emas. Hisoblar va qurilmalar orasida shifrlangan sinxronlash qo‘shilganda ma’qul tanlov bo‘ladi (serverda faqat shifrlangan blob).
-
-## Tavsiya etilgan tartib
-1. (Tayyor) Desktop dasturlari + statistika + yuklab olish sahifasi → 5–20 sinovchi.
-2. Brauzer yadrosi (Phase 2) → PWA (iPhone/Android/hamma joyda havola bilan).
-3. Capacitor: Android APK GitHub'da, iOS TestFlight.
-4. Kod imzolash (Windows sertifikat, Apple Developer) — ishonch ogohlantirishlari yo‘qolishi uchun.
+Apple Developer ID signing/notarization and Windows publisher signing may
+require separate certificates. Signing status is reported on the release.
