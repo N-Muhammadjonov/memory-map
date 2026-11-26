@@ -73,10 +73,22 @@ for(const [name,detail,file] of platforms){
 (async()=>{
   const display=document.getElementById("release-status");
   try{
-    const response=await fetch("https://api.github.com/repos/"+REPO+"/releases/latest",{headers:{Accept:"application/vnd.github+json"}});
-    if(!response.ok)throw new Error("Release unavailable");
-    const release=await response.json();
-    if(release.draft||release.prerelease||!/^v\d+(\.\d+){0,2}$/.test(release.tag_name))throw new Error("Release unavailable");
+    const base="https://api.github.com/repos/"+REPO+"/releases";
+    const options={headers:{Accept:"application/vnd.github+json"}};
+    const valid=release=>release&&!release.draft&&/^v\d+(\.\d+){0,2}$/.test(release.tag_name);
+    const response=await fetch(base+"/latest",options);
+    let release;
+    if(response.ok){
+      release=await response.json();
+      if(!valid(release)||release.prerelease)throw new Error("Release unavailable");
+    }else if(response.status===404){
+      // The first public version may be a beta. Do not replace an existing stable release with a beta.
+      const candidates=await fetch(base+"?per_page=20",options);
+      if(!candidates.ok)throw new Error("Release unavailable");
+      const list=await candidates.json();
+      release=Array.isArray(list)?list.find(item=>valid(item)&&item.prerelease===true):null;
+      if(!release)throw new Error("Release unavailable");
+    }else throw new Error("Release unavailable");
     let count=0;
     const agent=navigator.userAgent.toLowerCase();
     const preferred=agent.includes("android")?"MemoryMap-android.apk":
@@ -88,7 +100,7 @@ for(const [name,detail,file] of platforms){
       const expected="https://github.com/"+REPO+"/releases/download/"+release.tag_name+"/"+item.name;
       if(item.browser_download_url!==expected)continue;
       const {div,status}=cards.get(item.name);
-      status.textContent=release.tag_name+" · "+Math.round(item.size/1048576)+" MB";
+      status.textContent=release.tag_name+(release.prerelease?" · Beta":"")+" · "+Math.round(item.size/1048576)+" MB";
       const link=document.createElement("a");link.href=expected;link.textContent="Download";
       div.append(link);count++;
       if (item.name===preferred) {
@@ -97,7 +109,7 @@ for(const [name,detail,file] of platforms){
         primary.textContent="Download for "+(preferred.includes("android")?"Android":preferred.includes("windows")?"Windows":"Linux");
       }
     }
-    display.textContent=count?"Latest release: "+release.tag_name:"No verified files in the latest release.";
+    display.textContent=count?(release.prerelease?"Public beta: ":"Latest release: ")+release.tag_name:"No verified files in the latest release.";
   }catch{
     display.textContent="No public release is available yet. Check GitHub Releases for progress.";
   }

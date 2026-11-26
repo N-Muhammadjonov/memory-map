@@ -13,12 +13,12 @@ class Node {
   constructor(tag='div') { this.tag=tag; this.children=[]; this.textContent=''; this.href=''; }
   append(...items) { this.children.push(...items); }
 }
-async function render(userAgent, release) {
+async function render(userAgent, release, candidates = []) {
   const elements = new Map([['main-download',new Node('a')],['release-status',new Node()],['all',new Node()]]);
   elements.get('main-download').textContent='Choose your download';
   elements.get('main-download').href='#downloads';
   const document = {createElement: tag=>new Node(tag),getElementById:id=>elements.get(id)};
-  await vm.runInNewContext(source, {document,navigator:{userAgent},fetch:async()=>({ok:Boolean(release),json:async()=>release})});
+  await vm.runInNewContext(source, {document,navigator:{userAgent},fetch:async url=>url.endsWith("/latest")?({ok:Boolean(release),status:release?200:404,json:async()=>release}):({ok:true,status:200,json:async()=>candidates})});
   return elements;
 }
 
@@ -42,4 +42,15 @@ test('unpublished releases and missing digests do not advertise downloads', asyn
     const elements=await render('Windows',release);
     assert.equal(elements.get('all').children.flatMap(card=>card.children.filter(child=>child.tag==='a')).length,0);
   }
+});
+
+
+test('first published beta is offered without replacing a stable release', async () => {
+  const beta = {tag_name:'v39', prerelease:true, draft:false, assets};
+  const draft = {...beta,draft:true};
+  const rendered = await render('Windows', null, [draft,beta]);
+  assert.equal(rendered.get('release-status').textContent,'Public beta: v39');
+  assert.equal(rendered.get('main-download').href,root+names[0]);
+  const stable = await render('Windows',{tag_name:'v39',assets},[beta]);
+  assert.equal(stable.get('release-status').textContent,'Latest release: v39');
 });
