@@ -24,7 +24,7 @@ from uuid import uuid4
 import settings
 from vault import Vault, VaultError
 
-VERSION = "v38"
+VERSION = "v39"
 FEATURES = ("home", "graph", "mindmap", "mindmap_view", "databases", "calendar", "roadmaps", "flashcards", "templates",
             "study", "daily", "search", "backup", "transfer", "import", "share", "publish_host", "attachments",
             "tasks", "clipper", "ai_agent", "ai_export")

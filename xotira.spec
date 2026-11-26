@@ -11,10 +11,10 @@ if sys.platform == "win32":  # publisher shown in the file's Properties and in W
     from PyInstaller.utils.win32.versioninfo import (FixedFileInfo, StringFileInfo, StringStruct, StringTable,
                                                      VarFileInfo, VarStruct, VSVersionInfo)
     version = VSVersionInfo(
-        ffi=FixedFileInfo(filevers=(38, 0, 0, 0), prodvers=(38, 0, 0, 0)),
+        ffi=FixedFileInfo(filevers=(39, 0, 0, 0), prodvers=(39, 0, 0, 0)),
         kids=[StringFileInfo([StringTable("040904B0", [
             StringStruct("CompanyName", "Nurmuhammad"), StringStruct("FileDescription", "Memory map"),
-            StringStruct("ProductName", "Memory map"), StringStruct("ProductVersion", "38"),
+            StringStruct("ProductName", "Memory map"), StringStruct("ProductVersion", "39"),
             StringStruct("LegalCopyright", "Nurmuhammad"), StringStruct("OriginalFilename", "MemoryMap.exe")])]),
               VarFileInfo([VarStruct("Translation", [1033, 1200])])])
 

@@ -21,6 +21,7 @@ public class WorkspaceTest {
         conn.setReadTimeout(15000);
         conn.setRequestProperty("Authorization", "Bearer " + token);
         if (body != null) {
+            conn.setRequestProperty("Origin", origin);
             conn.setRequestMethod("POST");
             conn.setDoOutput(true);
             conn.setRequestProperty("Content-Type", "application/json");
@@ -29,7 +30,22 @@ public class WorkspaceTest {
             }
         }
         try {
-            assertEquals(200, conn.getResponseCode());
+            int expected = body != null && "/api/notes".equals(path) ? 201 : 200;
+            int actual = conn.getResponseCode();
+            if (actual != expected) {
+                String detail = "";
+                java.io.InputStream error = conn.getErrorStream();
+                if (error != null) {
+                    try (java.io.InputStream in = error;
+                         java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream()) {
+                        byte[] buf = new byte[512];
+                        int n;
+                        while ((n = in.read(buf)) != -1) out.write(buf, 0, n);
+                        detail = new String(out.toByteArray(), StandardCharsets.UTF_8);
+                    }
+                }
+                fail(path + " returned " + actual + " — " + detail);
+            }
             try (java.io.InputStream in = conn.getInputStream();
                  java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream()) {
                 byte[] b = new byte[4096];
@@ -53,6 +69,13 @@ public class WorkspaceTest {
             String body = "{\"password\":\"test-device-vault-password\",\"create\":true,\"confirmation\":\"test-device-vault-password\"}";
             assertTrue(request(location[0],location[1],"/api/create",body).contains("true"));
             assertTrue(request(location[0],location[1],"/api/status",null).contains("\"unlocked\": true"));
+            String note = request(location[0],location[1],"/api/notes",
+                "{\"notes\":[{\"title\":\"Emulator fixture\",\"body\":\"Encrypted mobile test\"}]}");
+            String id = new org.json.JSONObject(note).getJSONArray("ids").getString(0);
+            assertTrue(request(location[0],location[1],"/api/notes/"+id,null).contains("Encrypted mobile test"));
+            request(location[0],location[1],"/api/lock","{}");
+            assertTrue(request(location[0],location[1],"/api/unlock",body).contains("true"));
+            assertTrue(request(location[0],location[1],"/api/notes/"+id,null).contains("Encrypted mobile test"));
         } finally { entry.callAttr("stop"); }
     }
 }
