@@ -619,6 +619,9 @@ class Handler(BaseHTTPRequestHandler):
             else:
                 self.write_json(updater.status())
             return
+        if route == "/api/account/owner-stats" and not post:
+            self.write_json(self.server.account.owner_stats())
+            return
         if route == "/api/account":
             account = self.server.account
             if not post:

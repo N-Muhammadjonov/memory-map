@@ -24,7 +24,7 @@ from uuid import uuid4
 import settings
 from vault import Vault, VaultError
 
-VERSION = "v39"
+VERSION = "v40"
 FEATURES = ("home", "graph", "mindmap", "mindmap_view", "databases", "calendar", "roadmaps", "flashcards", "templates",
             "study", "daily", "search", "backup", "transfer", "import", "share", "publish_host", "attachments",
             "tasks", "clipper", "ai_agent", "ai_export")
@@ -238,7 +238,11 @@ class Telemetry:
 
     # ---- sending ------------------------------------------------------------------------------
     def tick(self) -> None:
-        """Called on every request: sends at most one ping per day, never blocks the app."""
+        """Send at most one ping per day without extending the vault idle timer."""
+        with self.vault.passive():
+            self._tick()
+
+    def _tick(self) -> None:
         if self.vault.cipher is None:
             self._consent = _UNSET
         if not self.endpoint or self.vault.cipher is None:

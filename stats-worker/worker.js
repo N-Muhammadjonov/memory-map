@@ -165,6 +165,25 @@ function authorized(request, env) {
   return diff === 0;
 }
 
+// Authorization lives in the identity project. Never trust email or role claims
+// supplied by the app, and do not expose a shared admin credential to clients.
+export async function ownerAuthorized(request, env, fetcher = fetch) {
+  const auth = request.headers.get("Authorization") || "";
+  if (!/^Bearer [A-Za-z0-9_.-]{20,8192}$/.test(auth)
+      || !/^https:\/\/[a-z0-9-]+\.supabase\.co$/.test(env.AUTH_URL || "")
+      || !String(env.AUTH_KEY || "").startsWith("sb_publishable_")) return false;
+  try {
+    const response = await fetcher(env.AUTH_URL + "/rest/v1/rpc/owner_account_stats", {
+      method: "POST", redirect: "error",
+      headers: {Authorization: auth, apikey: env.AUTH_KEY, "Content-Type": "application/json"},
+      body: "{}",
+    });
+    return response.ok && (await response.json()).owner === true;
+  } catch {
+    return false;
+  }
+}
+
 const rows = async (env, sql, ...args) => (await env.DB.prepare(sql).bind(...args).all()).results;
 const one = async (env, sql, ...args) => (await env.DB.prepare(sql).bind(...args).first()) || {};
 
@@ -185,6 +204,7 @@ export async function stats(env, days = 30) {
     generated: now,
     aiCounts: await one(env, "SELECT COALESCE(SUM(requests), 0) AS requests, COALESCE(SUM(approvals), 0) AS approvals FROM ai_counts WHERE month = ?", now.slice(0, 7)),
     installs: (await one(env, "SELECT COUNT(*) AS n FROM installs")).n || 0,
+    feedbackCount: (await one(env, "SELECT COUNT(*) AS n FROM feedback")).n || 0,
     active: {today: await active(now), last7: await active(d7), last30: await active(d30)},
     newInstallsByDay: await rows(env, "SELECT first_seen AS day, COUNT(*) AS installs FROM installs WHERE first_seen >= ? GROUP BY first_seen ORDER BY day", since),
     activeByDay: await rows(env, "SELECT day, COUNT(DISTINCT install_id) AS active FROM pings WHERE day >= ? GROUP BY day ORDER BY day", since),
@@ -255,6 +275,10 @@ export async function handle(request, env) {
   if (url.pathname === "/admin" && request.method === "GET") {
     return new Response(DASHBOARD, {headers: {"Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store",
       "Content-Security-Policy": "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; img-src blob:; base-uri 'none'; form-action 'none'"}});
+  }
+  if (url.pathname === "/owner/stats" && request.method === "GET") {
+    if (!await ownerAuthorized(request, env)) return json({error: "owner access required"}, 403);
+    return json(await stats(env, url.searchParams.get("days")));
   }
   if (url.pathname === "/admin/stats" && request.method === "GET") {
     if (!authorized(request, env)) return json({error: "unauthorized"}, 401);

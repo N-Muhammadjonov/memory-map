@@ -238,9 +238,11 @@ function showGate({exists, message = ""}) {
   for (const dlg of ["draw-dialog", "create-dialog", "cmd-dialog", "template-dialog", "path-dialog", "history-dialog", "relations-dialog", "search-dialog", "agent-dialog", "study-dialog", "timer-dialog", "mind-create-dialog", "reminder-dialog", "share-dialog", "transfer-dialog", "a11y-dialog", "onboarding-dialog", "bibtex-dialog", "clipper-dialog", "feedback-dialog", "ai-panel", "recovery-dialog", "note-lock-dialog", "mirror-dialog"]) {
     if ($(dlg)?.open) $(dlg).close();
   }
-  for (const dlg of ["account-dialog", "updates-dialog"]) {
+  for (const dlg of ["account-dialog", "updates-dialog", "owner-stats-dialog"]) {
     if ($(dlg)?.open) $(dlg).close();
   }
+  $("owner-stats-content")?.replaceChildren();
+  $("account-owner-stats").hidden = true;
   document.querySelector(".tour-card[open]")?.close();
   state.fileSequence += 1;
   viewer.close();
@@ -3792,6 +3794,9 @@ function showAccount(data) {
     : data.user?.email ? "Signed in as " + data.user.email : data.message || "Sign in or create an account.";
   $("account-form").hidden = !data.configured || Boolean(data.user?.email);
   $("account-signout").hidden = !data.user?.email;
+  $("account-google").disabled = data.googleAvailable !== true;
+  $("account-google").title = data.googleAvailable === true ? "" : "Google sign-in is not enabled on the account service yet.";
+  $("account-owner-stats").hidden = data.owner !== true;
   $("account-refresh").hidden = !data.configured;
   if (data.user?.email) $("account-google-link").hidden = true;
 }
@@ -3828,6 +3833,100 @@ $("account-google").addEventListener("click", () => void run(async () => {
 }));
 $("account-signout").addEventListener("click", () => void run(async () =>
   showAccount(await request("/account", {body:{action:"sign-out"}}))));
+
+// Render only server-authorized aggregate data. Use text nodes, never HTML from the service.
+let ownerStatsSequence = 0;
+const ownerStatsContent = $("owner-stats-content");
+function statsElement(tag, className, text) {
+  const element = document.createElement(tag);
+  if (className) element.className = className;
+  if (text !== undefined) element.textContent = String(text);
+  return element;
+}
+function statsCards(target, heading, data) {
+  target.append(statsElement("h3", "owner-stats-section", heading));
+  const grid = statsElement("div", "owner-stats-grid");
+  for (const [label, value] of data) {
+    const card = statsElement("div", "owner-stats-card");
+    card.append(statsElement("strong", "", Number.isFinite(value) ? value.toLocaleString() : "—"),
+      statsElement("span", "", label));
+    grid.append(card);
+  }
+  target.append(grid);
+}
+function statsRows(target, heading, rows, nameKey = "name", valueKey = "installs") {
+  if (!Array.isArray(rows) || !rows.length) return;
+  const section = statsElement("section", "owner-stats-table");
+  section.append(statsElement("h3", "owner-stats-section", heading));
+  for (const row of rows.slice(0, 180)) {
+    if (!row || !Number.isFinite(row[valueKey])) continue;
+    const line = statsElement("div", "owner-stats-row");
+    line.append(statsElement("span", "", row[nameKey] ?? "—"), statsElement("strong", "", row[valueKey].toLocaleString()));
+    section.append(line);
+  }
+  target.append(section);
+}
+function renderOwnerStats(data) {
+  ownerStatsContent.replaceChildren();
+  const a = data.accounts || {};
+  statsCards(ownerStatsContent, "Accounts", [
+    ["Registered", a.registered], ["Confirmed", a.confirmed],
+    ["New in 7 days", a.newLast7], ["Signed in during 30 days", a.signedInLast30],
+  ]);
+  const s = data.usage;
+  if (!s) {
+    ownerStatsContent.append(statsElement("p", "agent-sub",
+      "Usage statistics are temporarily unavailable. Account counts above are live."));
+    return;
+  }
+  statsCards(ownerStatsContent, "Opt-in usage", [
+    ["Reporting installations", s.installs], ["Active today", s.active?.today],
+    ["Active in 7 days", s.active?.last7], ["Active in 30 days", s.active?.last30],
+    ["Feedback submissions", s.feedbackCount], ["AI requests this month", s.aiCounts?.requests],
+    ["AI approvals this month", s.aiCounts?.approvals], ["Returned installations", s.retention?.cameBackAtLeastOnce],
+  ]);
+  const tables = statsElement("div", "owner-stats-tables");
+  for (const [label, key] of [["Platforms", "platforms"], ["Versions", "versions"], ["Languages", "languages"],
+    ["Countries", "countries"], ["Note count ranges", "noteSizes"], ["Features used", "features"], ["Milestones", "funnelCounts"]]) {
+    statsRows(tables, label, s[key]);
+  }
+  statsRows(tables, "New installations by day", s.newInstallsByDay, "day");
+  statsRows(tables, "Active installations by day", s.activeByDay, "day", "active");
+  ownerStatsContent.append(tables);
+}
+async function refreshOwnerStats() {
+  const sequence = ++ownerStatsSequence;
+  const dialog = $("owner-stats-dialog");
+  const status = $("owner-stats-status");
+  const refresh = $("owner-stats-refresh");
+  refresh.disabled = true;
+  status.textContent = "Loading…";
+  ownerStatsContent.replaceChildren();
+  try {
+    const data = await request("/account/owner-stats");
+    if (sequence !== ownerStatsSequence || !dialog.open) return;
+    renderOwnerStats(data);
+    status.textContent = "Updated just now";
+  } catch (error) {
+    if (sequence !== ownerStatsSequence || !dialog.open) return;
+    status.textContent = error.message;
+  } finally {
+    if (sequence === ownerStatsSequence) refresh.disabled = false;
+  }
+}
+$("account-owner-stats").addEventListener("click", () => {
+  $("account-dialog").close();
+  $("owner-stats-dialog").showModal();
+  void refreshOwnerStats();
+});
+$("owner-stats-refresh").addEventListener("click", () => void refreshOwnerStats());
+$("owner-stats-close").addEventListener("click", () => $("owner-stats-dialog").close());
+$("owner-stats-dialog").addEventListener("close", () => {
+  ownerStatsSequence++;
+  ownerStatsContent.replaceChildren();
+  $("owner-stats-status").textContent = "";
+  $("owner-stats-refresh").disabled = false;
+});
 
 function showUpdates(data) {
   $("updates-auto").checked = data.enabled;

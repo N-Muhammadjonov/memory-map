@@ -12,7 +12,7 @@ hosts download and privacy pages.
 - Optional identity: a separate Supabase Auth project; this is independent of the
   encrypted local vault. Do not use an existing unrelated application database.
 
-Set these **repository variables** after verifying the corresponding service:
+Public defaults are bundled in build_config.py. These **repository variables** may override them after verifying the corresponding service:
 
 | Variable | Purpose |
 |---|---|
@@ -25,9 +25,21 @@ For Supabase Auth, require email confirmation and configure production SMTP.
 Enable the Google provider with its OAuth credentials and configure the site URL
 and allowlisted loopback callback
 `http://127.0.0.1:*/account/callback**`. The app uses a random, expiring
-one-time nonce and PKCE. Account credentials and session tokens never travel
-through the analytics service. A vault lock clears the app's in-memory account
+one-time nonce and PKCE. Account passwords never travel through the analytics service. The owner’s short-lived
+access token is sent only to the official Worker when requesting owner statistics;
+it is verified against Supabase and is never stored. A vault lock clears the app's in-memory account
 session. The account is optional and does not synchronize notes.
+
+## Owner statistics
+
+Apply the migration in `supabase/migrations`. Add the exact owner mailbox to
+`memory_map_private.owner_accounts` directly in the private project (do not
+commit real email addresses). Configure the Worker with the public Auth URL
+and publishable key as `AUTH_URL` and `AUTH_KEY`. Only a confirmed account
+with a current server-side session and a matching owner entry can read account
+counts or anonymized usage. Anonymous statistics are off until users opt in.
+In the app, open File → Account, sign in and choose Owner statistics. The app
+labels missing usage data as unavailable rather than inventing zeros.
 
 ## Release workflow
 
@@ -38,7 +50,9 @@ uses a stable private signing key stored as GitHub Actions secrets. The running
 workspace opens in the system browser from the Android launcher.
 
 Each desktop build runs existing tests and a standalone smoke test. The release
-job groups verified distributives with SHA256SUMS.txt and creates a draft. Before
+job groups verified distributives with SHA256SUMS.txt and creates a draft for
+a new version on main or a matching version tag. Existing releases are never
+replaced; increment the version for subsequent release candidates. Before
 publishing, verify all jobs and the signing status, public site, statistics
 endpoint and real account registration. Only then publish the draft. iOS/iPadOS
 requires a separate tested native build and Apple signing/distribution.

@@ -66,7 +66,9 @@ class AccountTests(unittest.TestCase):
             self.calls.append((path, data, token))
             return self.result
         self.account = AccountClient("https://project.supabase.co", "sb_publishable_test",
-                                     "https://example.invalid/account-confirmed.html", transport=transport)
+                                     "https://example.invalid/account-confirmed.html", transport=transport,
+                                     owner_transport=lambda _: {"owner": False},
+                                     providers_transport=lambda: {"external": {"google": True}})
 
     def test_registration_requires_confirmation_and_tokens_are_private(self):
         result = self.account.email("test@example.invalid", "test-password-12", register=True)
@@ -93,6 +95,36 @@ class AccountTests(unittest.TestCase):
         self.assertTrue(self.calls[-1][1]["code_verifier"])
         with self.assertRaises(VaultError):
             self.account.finish_google(nonce, "code")
+
+    def test_google_is_disabled_when_the_provider_is_not_enabled(self):
+        self.account.providers_transport = lambda: {"external": {"google": False}}
+        self.assertFalse(self.account.status()["googleAvailable"])
+        with self.assertRaises(VaultError):
+            self.account.begin_google("http://127.0.0.1:12345")
+
+    def test_owner_statistics_require_verified_server_authorization(self):
+        with self.assertRaises(VaultError):
+            self.account.owner_stats()
+        self.account.email("test@example.invalid", "test-password-12", register=False)
+        self.assertFalse(self.account.status()["owner"])
+        with self.assertRaises(VaultError) as denied:
+            self.account.owner_stats()
+        self.assertEqual(denied.exception.status, 403)
+        self.account.owner_transport = lambda token: {
+            "owner": token == "synthetic-token", "registered": 3, "confirmed": 2,
+            "newLast7": 1, "signedInLast30": 2, "notPublic": "private"}
+        self.account.usage_transport = lambda token: {"installs": 5}
+        self.assertTrue(self.account.status()["owner"])
+        self.assertEqual(self.account.owner_stats(), {"accounts": {"registered": 3, "confirmed": 2,
+                         "newLast7": 1, "signedInLast30": 2}, "usage": {"installs": 5}})
+        def unavailable(token):
+            raise VaultError("service unavailable", 503)
+        self.account.usage_transport = unavailable
+        self.assertIsNone(self.account.owner_stats()["usage"])
+        self.account.sign_out()
+        self.assertFalse(self.account.status()["owner"])
+        with self.assertRaises(VaultError):
+            self.account.owner_stats()
 
     def test_rejects_unsafe_configuration(self):
         self.assertFalse(AccountClient("http://project.supabase.co","sb_publishable_test","").configured)

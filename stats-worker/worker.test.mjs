@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import {readFileSync} from "node:fs";
 import {DatabaseSync} from "node:sqlite";
 import {crc32} from "node:zlib";
-import {handle, stats, validatePing, FEATURES, FEEDBACK_PER_DAY} from "./worker.js";
+import {handle, stats, validatePing, FEATURES, FEEDBACK_PER_DAY, ownerAuthorized} from "./worker.js";
 
 function makeEnv() {
   const db = new DatabaseSync(":memory:");
@@ -159,4 +159,25 @@ test("AI statistics accept only opted-in numeric totals and clear on withdrawal"
   assert.equal((await submit(ping({ai_counts: {requests: 9, approvals: 4, text: "CANARY_12345"}}))).status, 400);
   assert.equal((await submit(ping())).status, 200);
   assert.deepEqual({...(await stats(env)).aiCounts}, {requests: 0, approvals: 0});
+});
+
+test("owner statistics require a verified owner at the identity service", async () => {
+  const env = makeEnv();
+  env.AUTH_URL = "https://fixture.supabase.co";
+  env.AUTH_KEY = "sb_publishable_fixture";
+  const url = "https://s.example/owner/stats";
+  const req = new Request(url, {headers: {Authorization: "Bearer test.header.signature12345"}});
+  const answer = (owner, status = 200) => async (endpoint, options) => {
+    assert.equal(endpoint, env.AUTH_URL + "/rest/v1/rpc/owner_account_stats");
+    assert.equal(options.headers.Authorization, req.headers.get("Authorization"));
+    assert.equal(options.redirect, "error");
+    return new Response(JSON.stringify({owner}), {status});
+  };
+  assert.equal(await ownerAuthorized(req, env, answer(true)), true);
+  assert.equal(await ownerAuthorized(req, env, answer(false)), false);
+  assert.equal(await ownerAuthorized(req, env, answer(true, 401)), false);
+  assert.equal(await ownerAuthorized(new Request(url), env, answer(true)), false);
+  assert.equal((await handle(new Request(url), env)).status, 403);
+  env.AUTH_URL = "https://untrusted.example";
+  assert.equal(await ownerAuthorized(req, env, () => { throw Error("should not call"); }), false);
 });

@@ -7,7 +7,7 @@
   <link rel="manifest" href="/manifest.webmanifest">
   <title>Memory map</title>
   <link rel="stylesheet" href="/styles.css?v=36">
-  <script type="module" src="/app.js?v=39"></script>
+  <script type="module" src="/app.js?v=40"></script>
 </head>
 <body>
   <main class="gate" id="gate">
@@ -1027,7 +1027,15 @@
       </form>
       <button id="account-refresh" type="button">Refresh account status</button>
       <button id="account-signout" type="button" hidden>Sign out</button>
+      <button id="account-owner-stats" type="button" class="primary" hidden>Owner statistics</button>
     </dialog>
+    <dialog id="owner-stats-dialog" aria-labelledby="owner-stats-heading">
+      <div class="dialog-head"><h2 id="owner-stats-heading">Owner statistics</h2><button type="button" id="owner-stats-close" aria-label="Close">×</button></div>
+      <p class="agent-sub">Account counts and anonymized, opt-in usage. User notes and files are never included.</p>
+      <div class="owner-stats-toolbar"><button type="button" id="owner-stats-refresh">Refresh</button><span id="owner-stats-status" role="status"></span></div>
+      <div id="owner-stats-content" aria-live="polite"></div>
+    </dialog>
+
     <dialog id="updates-dialog" aria-labelledby="updates-heading">
       <div class="dialog-head"><h2 id="updates-heading">Updates</h2><button type="button" id="updates-close" aria-label="Close">×</button></div>
       <p id="updates-status" role="status"></p>

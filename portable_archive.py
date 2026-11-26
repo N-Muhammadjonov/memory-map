@@ -10,7 +10,7 @@ import tempfile
 from pathlib import Path
 from zipfile import BadZipFile, ZipFile
 
-from vault import APPLICATION_ID, SCHEMA_VERSION, VaultError
+from vault import APPLICATION_ID, SCHEMA_VERSION, VaultError, publish_exclusive
 
 SNAPSHOT = "xotira/vault.xotira"
 MAX_SNAPSHOT = 32 * 1024**3
@@ -45,7 +45,7 @@ def restore_snapshot(portable: Path, destination: Path) -> None:
         except sqlite3.Error as error:
             raise VaultError("Could not read the archived vault.") from error
         try:
-            os.link(temporary, destination)
+            publish_exclusive(temporary, destination)
         except FileExistsError as error:
             raise VaultError("Choose a new file name for the restored vault.") from error
     finally:

@@ -110,6 +110,27 @@ class Note:
     storage_only: bool = False
 
 
+def publish_exclusive(temporary: Path, destination: Path) -> None:
+    """Publish a complete file without replacing an existing destination.
+
+    Android and some removable filesystems disallow hard links. Reserve the
+    destination exclusively before renaming on those filesystems.
+    """
+    try:
+        os.link(temporary, destination)
+        return
+    except OSError as error:
+        if error.errno not in (errno.EOPNOTSUPP, errno.ENOSYS, errno.EPERM, errno.EACCES):
+            raise
+    descriptor = os.open(destination, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+    try:
+        os.close(descriptor)
+        os.replace(temporary, destination)
+    except OSError:
+        destination.unlink(missing_ok=True)
+        raise
+
+
 def clean_title(value: str) -> str:
     title = " ".join(value.split())
     if not title or len(title) > 120 or any(char in title for char in "[]#|"):
@@ -468,7 +489,7 @@ class Vault:
                     "INSERT INTO metadata (name, value) VALUES (?, ?)",
                     (("salt", salt), ("vault_id", vault_id), ("proof", proof)),
                 )
-            os.link(temporary_path, self.path)
+            publish_exclusive(temporary_path, self.path)
         except FileExistsError as error:
             raise VaultError("This vault already exists.", 409) from error
         finally:
@@ -1752,17 +1773,6 @@ class Vault:
             with temporary.open("r+b") as file:
                 file.flush()
                 os.fsync(file.fileno())
-            try:
-                os.link(temporary, destination)
-            except OSError as error:
-                if error.errno not in (errno.EOPNOTSUPP, errno.ENOSYS, errno.EPERM):
-                    raise
-                with destination.open("xb"):
-                    pass
-                try:
-                    os.replace(temporary, destination)
-                except OSError:
-                    destination.unlink()
-                    raise
+            publish_exclusive(temporary, destination)
         finally:
             temporary.unlink(missing_ok=True)
