@@ -181,3 +181,26 @@ test("owner statistics require a verified owner at the identity service", async 
   env.AUTH_URL = "https://untrusted.example";
   assert.equal(await ownerAuthorized(req, env, () => { throw Error("should not call"); }), false);
 });
+
+test("the production owner lookup preserves the Workers fetch receiver", async () => {
+  const env = makeEnv();
+  env.AUTH_URL = "https://fixture.supabase.co";
+  env.AUTH_KEY = "sb_publishable_fixture";
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async function (endpoint, options) {
+    assert.equal(this, globalThis);
+    assert.equal(endpoint, env.AUTH_URL + "/rest/v1/rpc/owner_account_stats");
+    assert.equal(options.headers.apikey, env.AUTH_KEY);
+    return new Response(JSON.stringify({owner: true}));
+  };
+  try {
+    const req = new Request("https://s.example/owner/stats", {
+      headers: {Authorization: "Bearer test.header.signature12345"},
+    });
+    const result = await handle(req, env);
+    assert.equal(result.status, 200);
+    assert.equal((await result.json()).installs, 0);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});

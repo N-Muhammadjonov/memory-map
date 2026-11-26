@@ -5,6 +5,7 @@ import json
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 import zipfile
 from pathlib import Path
@@ -77,6 +78,26 @@ class LocalApp:
 
 
 class VaultLifecycleTest(unittest.TestCase):
+    def test_manual_backup_does_not_suppress_the_automatic_snapshot(self) -> None:
+        from app import Server
+        from vault import Vault
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            automatic = root / "auto"
+            automatic.mkdir()
+            vault = Vault(root / "main.xotira")
+            vault.unlock(PASSWORD, create=True)
+            with Server(vault, automatic) as server:
+                vault.backup(root / "manual.xotira")
+                server.record_backup()
+                server.service_actions()
+                self.assertTrue(list(automatic.glob("*.xotira")))
+                self.assertEqual(server.backup_changes, vault.changes)
+                server.service_actions()
+                self.assertEqual(len(list(automatic.glob("*.xotira"))), 1)
+            vault.lock()
+
     def test_create_edit_secure_backup_restore(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -117,6 +138,10 @@ class VaultLifecycleTest(unittest.TestCase):
                 self.assertEqual(app.call("/api/graph?trash=1")["nodes"][0]["id"], second)
                 app.call(f"/api/notes/{second}", {"revision": 3, "trashed": False})
                 backup.write_bytes(app.call("/api/backup", raw=True))
+                # The automatic backup runs in the server maintenance loop.
+                deadline = time.monotonic() + 5
+                while not list(auto_backup.glob("*.xotira")) and time.monotonic() < deadline:
+                    time.sleep(0.05)
                 self.assertTrue(list(auto_backup.glob("*.xotira")))
                 for path in (vault, backup, *auto_backup.glob("*.xotira")):
                     ciphertext = path.read_bytes()

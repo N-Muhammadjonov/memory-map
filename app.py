@@ -236,11 +236,13 @@ class Server(ThreadingHTTPServer):
         if not self.last_backup:
             self.last_backup = stored.get("lastBackup", "")
 
-    def record_backup(self) -> None:
+    def record_backup(self, *, automatic: bool = False) -> None:
         self.last_backup = datetime.now().astimezone().isoformat(timespec="seconds")
         if self.vault.cipher is not None:
             settings.save(self.vault, "backup_status", {"lastBackup": self.last_backup})
-        self.backup_changes = self.vault.changes
+        # A manually downloaded backup does not fulfill the scheduled folder backup.
+        if automatic:
+            self.backup_changes = self.vault.changes
         self.backup_error = ""
 
     def current_proposals(self) -> dict[str, dict[str, Any]]:
@@ -262,7 +264,7 @@ class Server(ThreadingHTTPServer):
             name = f"MemoryMap-{datetime.now().strftime('%Y%m%d-%H%M%S')}-{secrets.token_hex(4)}.xotira"
             try:
                 self.vault.backup(self.backup_dir / name)
-                self.record_backup()
+                self.record_backup(automatic=True)
             except (OSError, sqlite3.Error, VaultError):
                 self.backup_error = "Avtomatik zaxira olinmadi. Disk ulanganini va bo‘sh joyni tekshiring."
                 self.backup_at = now + 30

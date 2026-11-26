@@ -167,7 +167,8 @@ function authorized(request, env) {
 
 // Authorization lives in the identity project. Never trust email or role claims
 // supplied by the app, and do not expose a shared admin credential to clients.
-export async function ownerAuthorized(request, env, fetcher = fetch) {
+// Call the runtime fetch through its receiver; detached platform functions can throw.
+export async function ownerAuthorized(request, env, fetcher = (...args) => globalThis.fetch(...args)) {
   const auth = request.headers.get("Authorization") || "";
   if (!/^Bearer [A-Za-z0-9_.-]{20,8192}$/.test(auth)
       || !/^https:\/\/[a-z0-9-]+\.supabase\.co$/.test(env.AUTH_URL || "")
