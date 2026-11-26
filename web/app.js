@@ -3794,8 +3794,10 @@ function showAccount(data) {
     : data.user?.email ? "Signed in as " + data.user.email : data.message || "Sign in or create an account.";
   $("account-form").hidden = !data.configured || Boolean(data.user?.email);
   $("account-signout").hidden = !data.user?.email;
-  $("account-google").disabled = data.googleAvailable !== true;
-  $("account-google").title = data.googleAvailable === true ? "" : "Google sign-in is not enabled on the account service yet.";
+  $("account-google").disabled = !data.configured || data.googleAvailable === false;
+  $("account-google").title = data.googleAvailable === true ? "" : data.googleAvailable === false
+    ? "Google sign-in is not enabled on the account service yet."
+    : "Could not verify provider availability. You can still try the official sign-in page.";
   $("account-owner-stats").hidden = data.owner !== true;
   $("account-refresh").hidden = !data.configured;
   if (data.user?.email) $("account-google-link").hidden = true;

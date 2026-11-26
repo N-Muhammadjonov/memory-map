@@ -94,20 +94,26 @@ class AccountClient:
                           headers={"apikey": self.key, "Accept": "application/json",
                                    "User-Agent": f"MemoryMap/{VERSION}"})
         try:
-            with build_opener(NoRedirect).open(request, timeout=5) as response:
+            with build_opener(NoRedirect).open(request, timeout=15) as response:
                 result = json.loads(response.read(128 * 1024))
         except (HTTPError, URLError, OSError, ValueError):
             return {}
         return result if isinstance(result, dict) else {}
 
-    def google_available(self) -> bool:
+    def google_available(self) -> bool | None:
+        """Distinguish a disabled provider from a temporarily unavailable lookup."""
         if not self.configured:
             return False
         now = time.monotonic()
-        if self._provider_cache is None or now - self._provider_cache[0] >= 60:
-            providers = self.providers_transport().get("external", {})
-            self._provider_cache = (now, isinstance(providers, dict) and providers.get("google") is True)
-        return self._provider_cache[1]
+        if self._provider_cache is not None and now - self._provider_cache[0] < 60:
+            return self._provider_cache[1]
+        providers = self.providers_transport().get("external", {})
+        enabled = providers.get("google") if isinstance(providers, dict) else None
+        if type(enabled) is bool:
+            self._provider_cache = (time.monotonic(), enabled)
+            return enabled
+        # A timeout or malformed result is not a negative provider capability.
+        return None
 
     def _request_owner(self, token: str) -> dict[str, Any]:
         return self._post_json(self.url + "/rest/v1/rpc/owner_account_stats", {}, token)
@@ -181,7 +187,7 @@ class AccountClient:
 
     def begin_google(self, origin: str) -> str:
         self._require()
-        if not self.google_available():
+        if self.google_available() is False:
             raise VaultError("Google sign-in is not enabled on the account service yet.", 503)
         verifier = secrets.token_urlsafe(48)
         nonce = secrets.token_urlsafe(24)

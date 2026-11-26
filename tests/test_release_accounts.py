@@ -102,6 +102,20 @@ class AccountTests(unittest.TestCase):
         with self.assertRaises(VaultError):
             self.account.begin_google("http://127.0.0.1:12345")
 
+    def test_google_provider_timeout_is_not_a_negative_capability(self):
+        responses = iter(({}, {"external": {"google": True}}))
+        self.account.providers_transport = lambda: next(responses)
+        self.assertIsNone(self.account.status()["googleAvailable"])
+        self.assertTrue(self.account.status()["googleAvailable"])
+        self.assertTrue(self.account.status()["googleAvailable"])  # cached only after a verified answer
+
+    def test_google_can_start_when_capability_lookup_is_unavailable(self):
+        self.account.providers_transport = lambda: {}
+        self.assertIsNone(self.account.status()["googleAvailable"])
+        url = self.account.begin_google("http://127.0.0.1:12345")
+        self.assertEqual(urlsplit(url).hostname, "project.supabase.co")
+        self.assertEqual(parse_qs(urlsplit(url).query)["provider"], ["google"])
+
     def test_owner_statistics_require_verified_server_authorization(self):
         with self.assertRaises(VaultError):
             self.account.owner_stats()
