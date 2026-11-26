@@ -62,6 +62,13 @@ public class WorkspaceTest {
         com.chaquo.python.PyObject entry = Python.getInstance().getModule("android_entry");
         File folder = new File(context.getCacheDir(), "workspace-test-" + System.nanoTime());
         assertTrue(folder.mkdirs());
+        com.chaquo.python.PyObject directPath = Python.getInstance().getModule("pathlib")
+            .callAttr("Path", new File(folder, "direct.xotira").getAbsolutePath());
+        com.chaquo.python.PyObject directVault = Python.getInstance().getModule("vault")
+            .callAttr("Vault", directPath);
+        directVault.callAttr("unlock", "disposable-android-direct-password",
+            new com.chaquo.python.Kwarg("create", true));
+        directVault.callAttr("lock");
         String[] location = entry.callAttr("start", folder.getAbsolutePath()).toString().split("/#", 2);
         try {
             assertTrue(request(location[0],location[1],"/",null).contains("Memory map"));

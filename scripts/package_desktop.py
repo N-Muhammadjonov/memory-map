@@ -1,5 +1,6 @@
 """Pack a smoke-tested executable for one platform and architecture."""
 from pathlib import Path
+import os
 import plistlib
 import shutil
 import subprocess
@@ -32,7 +33,18 @@ elif "macos" in name:
             "CFBundleVersion": VERSION.removeprefix("v"),
             "NSHighResolutionCapable": True,
         }, stream)
-    subprocess.run(["ditto", "-c", "-k", "--keepParent", str(app), str(out / (name + ".zip"))], check=True)
+    package = out / (name + ".zip")
+    sign = os.environ.get("APPLE_SIGN_IDENTITY")
+    if os.environ.get("APPLE_CERT_BASE64") and sign:
+        subprocess.run(["codesign", "--force", "--options", "runtime", "--timestamp", "--sign", sign, str(app)], check=True)
+        subprocess.run(["codesign", "--verify", "--deep", "--strict", str(app)], check=True)
+    subprocess.run(["ditto", "-c", "-k", "--keepParent", str(app), str(package)], check=True)
+    if os.environ.get("APPLE_CERT_BASE64") and sign:
+        subprocess.run(["xcrun", "notarytool", "submit", str(package), "--apple-id", os.environ["APPLE_ID"],
+                        "--team-id", os.environ["APPLE_TEAM_ID"], "--password", os.environ["APPLE_APP_PASSWORD"], "--wait"], check=True)
+        subprocess.run(["xcrun", "stapler", "staple", str(app)], check=True)
+        package.unlink()
+        subprocess.run(["ditto", "-c", "-k", "--keepParent", str(app), str(package)], check=True)
     shutil.copy2(binary, out / (name + ".bin"))
 else:
     with tarfile.open(out / (name + ".tar.gz"), "w:gz") as archive:
