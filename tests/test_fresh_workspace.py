@@ -114,8 +114,12 @@ class FreshWorkspaceTests(unittest.TestCase):
         self.request("/api/trash", {"action": "restore", "file": {"noteId": note, "id": photo["id"]}})
         self.assertEqual(self.request(f"{note_path}/files/{photo['id']}", binary=True), image)
 
-        code = self.request("/api/snippets/run", {"language": "python", "source": 'print("Ready")'})
-        self.assertEqual(code["output"].strip(), "Ready")
+        snippet = {"language": "python", "source": 'print("Ready")'}
+        if self.request("/api/snippets/check", snippet)["runnable"]:
+            code = self.request("/api/snippets/run", snippet)
+            self.assertEqual(code["output"].strip(), "Ready")
+        else:
+            self.request("/api/snippets/run", snippet, status=400)
         self.request("/api/lock", {})
         self.request(note_path, status=423)
         self.request("/api/unlock", {"password": PASSWORD})

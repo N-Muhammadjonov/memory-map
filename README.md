@@ -1,4 +1,4 @@
-# Memory map v37 (kod nomi: Xotira)
+# Memory map v38 (kod nomi: Xotira)
 
 Xotira shifrlangan mahalliy omborda Markdown qaydlar, biriktirmalar, vazifalar va bog‘lanishlarni saqlaydi. Qaydlarni muharrir, jadval, Kanban, galereya, taqvim yoki xaritada oching.
 
@@ -13,7 +13,7 @@ The encrypted vault remains on the user's device. The optional Account menu uses
 ZIP Downloads ichida ochilgan bo‘lsa, Terminalda quyidagi to‘liq yo‘l bilan ishga tushiring.
 
 ```sh
-sh "$HOME/Downloads/memory-map-v37/start.command"
+sh "$HOME/Downloads/memory-map-v38/start.command"
 ```
 
 ZIP boshqa joyda ochilgan bo‘lsa, Terminalga sh va bitta bo‘sh joy yozing, Finder’dan start.command faylini Terminalga sudrab tashlang va Enter bosing.

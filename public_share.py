@@ -11,6 +11,7 @@ import os
 import re
 import secrets
 import sqlite3
+from contextlib import closing
 from datetime import datetime, timezone
 from typing import Any
 
@@ -268,7 +269,7 @@ def fetch_public_snapshot(vault: Vault, slug: str) -> dict[str, Any] | None:
     if not vault.exists or not SLUG_PATTERN.fullmatch(slug):
         return None
     try:
-        with sqlite3.connect(f"{vault.path.as_uri()}?mode=ro", uri=True, timeout=2) as database:
+        with closing(sqlite3.connect(f"{vault.path.as_uri()}?mode=ro", uri=True, timeout=2)) as database:
             row = database.execute(
                 "SELECT slug, title, summary, tags, body_md, theme, password_hash, updated_at, published_at FROM public_shares WHERE slug = ?",
                 (slug,),

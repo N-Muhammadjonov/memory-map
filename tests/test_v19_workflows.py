@@ -5,6 +5,7 @@ from __future__ import annotations
 from contextlib import closing
 import http.client
 import json
+import os
 from pathlib import Path
 import stat
 import tempfile
@@ -62,7 +63,9 @@ class PlanningAndAccessTests(unittest.TestCase):
             self.vault.set_reminder(note_id, "", "")
         self.assertEqual(conflict.exception.status, 409)
         self.assertNotIn(WHEN.encode(), self.path.read_bytes())
-        self.assertEqual(stat.S_IMODE(self.path.stat().st_mode), 0o600)
+        # POSIX mode bits do not represent the inherited Windows user-directory ACL.
+        if os.name != "nt":
+            self.assertEqual(stat.S_IMODE(self.path.stat().st_mode), 0o600)
 
         target = self.path.with_name("backup.xotira")
         self.vault.backup(target)

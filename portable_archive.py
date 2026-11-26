@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import shutil
 import sqlite3
+from contextlib import closing
 import tempfile
 from pathlib import Path
 from zipfile import BadZipFile, ZipFile
@@ -34,7 +35,7 @@ def restore_snapshot(portable: Path, destination: Path) -> None:
         except (BadZipFile, NotImplementedError, RuntimeError, EOFError) as error:
             raise VaultError("Could not read the restore archive.") from error
         try:
-            with sqlite3.connect(temporary.as_uri() + "?mode=ro&immutable=1", uri=True) as database:
+            with closing(sqlite3.connect(temporary.as_uri() + "?mode=ro&immutable=1", uri=True)) as database:
                 database.execute("PRAGMA trusted_schema = OFF")
                 if (database.execute("PRAGMA application_id").fetchone() != (APPLICATION_ID,)
                         or database.execute("PRAGMA user_version").fetchone() != (SCHEMA_VERSION,)

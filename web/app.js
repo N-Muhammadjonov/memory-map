@@ -238,6 +238,9 @@ function showGate({exists, message = ""}) {
   for (const dlg of ["draw-dialog", "create-dialog", "cmd-dialog", "template-dialog", "path-dialog", "history-dialog", "relations-dialog", "search-dialog", "agent-dialog", "study-dialog", "timer-dialog", "mind-create-dialog", "reminder-dialog", "share-dialog", "transfer-dialog", "a11y-dialog", "onboarding-dialog", "bibtex-dialog", "clipper-dialog", "feedback-dialog", "ai-panel", "recovery-dialog", "note-lock-dialog", "mirror-dialog"]) {
     if ($(dlg)?.open) $(dlg).close();
   }
+  for (const dlg of ["account-dialog", "updates-dialog"]) {
+    if ($(dlg)?.open) $(dlg).close();
+  }
   document.querySelector(".tour-card[open]")?.close();
   state.fileSequence += 1;
   viewer.close();

@@ -14,6 +14,7 @@ import subprocess
 import sys
 import tempfile
 import threading
+import time
 from pathlib import Path
 from typing import Any, Callable
 from urllib.error import URLError
@@ -129,6 +130,7 @@ class UpdateManager:
         self.lock = threading.RLock()
         self.busy = False
         self.message = ""
+        self.next_check = 0.0
         self.config = self._load()
 
     def _load(self) -> dict[str, Any]:
@@ -179,6 +181,7 @@ class UpdateManager:
             if not self.name or not REPO_PATTERN.fullmatch(self.repo):
                 raise ValueError("Automatic updates require an installed desktop build")
             self.config["enabled"] = enabled
+            self.next_check = 0.0
             self._save()
         if enabled:
             self.check()
@@ -186,8 +189,10 @@ class UpdateManager:
 
     def check(self) -> None:
         with self.lock:
-            if not self.name or not self.config.get("enabled") or self.busy:
+            now = time.monotonic()
+            if not self.name or not self.config.get("enabled") or self.busy or now < self.next_check:
                 return
+            self.next_check = now + 3600
             self.busy = True
         threading.Thread(target=self._stage, daemon=True).start()
 

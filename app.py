@@ -254,6 +254,7 @@ class Server(ThreadingHTTPServer):
             return
         try:
             self.session_status()
+            self.updater.check()
             now = time.monotonic()
             if self.backup_dir is None or self.vault.changes == self.backup_changes or now < self.backup_at:
                 return

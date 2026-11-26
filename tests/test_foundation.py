@@ -6,6 +6,7 @@ import http.client
 import io
 import json
 import sqlite3
+from contextlib import closing
 import tempfile
 import threading
 import unittest
@@ -74,7 +75,7 @@ class FoundationTests(unittest.TestCase):
         self.vault.unlock(PASSWORD, create=False)
         snapshots = list(self.root.glob("*.pre-structure-*"))
         self.assertEqual(len(snapshots), 1)
-        with sqlite3.connect(snapshots[0]) as db:
+        with closing(sqlite3.connect(snapshots[0])) as db:
             self.assertIsNone(db.execute("SELECT name FROM sqlite_master WHERE name='entity_fields'").fetchone())
         self.assertEqual(self.vault.attachment(self.first, attachment)[1], b"Original file bytes")
         self.assertEqual(self.vault.graph_positions()[self.first], [1, 2, 3])

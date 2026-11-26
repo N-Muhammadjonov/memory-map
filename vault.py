@@ -16,7 +16,7 @@ import threading
 import time
 import unicodedata
 from collections.abc import Callable, Iterator
-from contextlib import contextmanager
+from contextlib import closing, contextmanager
 from dataclasses import asdict, dataclass, replace
 from datetime import datetime
 from pathlib import Path
@@ -456,7 +456,7 @@ class Vault:
         os.close(descriptor)
         temporary_path = Path(temporary)
         try:
-            with sqlite3.connect(temporary_path) as database:
+            with closing(sqlite3.connect(temporary_path)) as database, database:
                 database.execute("PRAGMA synchronous = FULL")
                 database.execute("PRAGMA fullfsync = ON")
                 database.execute("BEGIN IMMEDIATE")
@@ -468,7 +468,6 @@ class Vault:
                     "INSERT INTO metadata (name, value) VALUES (?, ?)",
                     (("salt", salt), ("vault_id", vault_id), ("proof", proof)),
                 )
-            database.close()
             os.link(temporary_path, self.path)
         except FileExistsError as error:
             raise VaultError("This vault already exists.", 409) from error
@@ -1750,7 +1749,8 @@ class Vault:
                         raise VaultError("The backup failed its integrity check.")
                 finally:
                     target.close()
-            with temporary.open("rb") as file:
+            with temporary.open("r+b") as file:
+                file.flush()
                 os.fsync(file.fileno())
             try:
                 os.link(temporary, destination)

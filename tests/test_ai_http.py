@@ -2,6 +2,7 @@ import http.client
 import io
 import json
 import sqlite3
+from contextlib import closing
 import tempfile
 import threading
 import unittest
@@ -101,7 +102,7 @@ class AILoopbackTests(unittest.TestCase):
             snapshot = next(name for name in archive.namelist() if name.endswith(".xotira"))
             copy = self.root / "copied.xotira"
             copy.write_bytes(archive.read(snapshot))
-        with sqlite3.connect(copy) as database:
+        with closing(sqlite3.connect(copy)) as database:
             self.assertEqual(database.execute("SELECT name FROM metadata WHERE name GLOB 'ai_*'").fetchall(), [])
         restored = Vault(copy)
         restored.unlock("safe test fixture notes", create=False)
