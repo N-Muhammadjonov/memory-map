@@ -21,7 +21,7 @@ header{display:flex;align-items:center;justify-content:space-between;border-bott
 h2{font-size:1.35rem;margin:28px 0 12px;letter-spacing:-.02em}
 .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(218px,1fr));gap:12px}
 .card{display:grid;gap:4px;padding:16px;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
-.card strong{font-size:1.03rem}.card small{color:var(--muted);font-size:.86rem}.card a{margin-top:4px}.card label{font-size:.86rem;color:var(--muted)}.card select{width:100%;min-height:40px;padding:6px 32px 6px 9px;font:inherit;font-size:.88rem;border:1px solid var(--line);border-radius:7px;background:var(--surface);color:var(--fg)}.card select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}.card [hidden]{display:none!important}
+.card strong{font-size:1.03rem}.card small{color:var(--muted);font-size:.86rem}.card a{margin-top:4px}.card label{font-size:.86rem;color:var(--muted)}.card select{width:100%;min-height:40px;padding:6px 32px 6px 9px;font:inherit;font-size:.88rem;border:1px solid var(--line);border-radius:7px;background:var(--surface);color:var(--fg)}.card select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}.card [hidden]{display:none!important}.card a[aria-disabled="true"]{color:var(--muted);cursor:default;text-decoration:none}.card .download-retry{justify-self:start;padding:5px 9px;border:1px solid var(--line);border-radius:6px;background:var(--surface);color:var(--fg);font:inherit;font-size:.82rem;cursor:pointer}.card .download-retry:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .features{display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));gap:18px;border-top:1px solid var(--line);padding-top:20px}
 .features h3{font-size:1rem;margin:0}.features p{color:var(--muted);margin:4px 0 0}
 .note{border:1px solid var(--line);border-radius:10px;padding:12px 16px;color:var(--muted);font-size:.9rem;margin-top:20px}
@@ -80,8 +80,9 @@ for(const [name,detail,file] of platforms){
     }
     select.value="";
     const link=document.createElement("a");link.hidden=true;link.textContent="Download .dmg";
-    div.append(label,select,link);
-    macCard={select,link,status};
+    const retry=document.createElement("button");retry.type="button";retry.className="download-retry";retry.hidden=true;retry.textContent="Enable another download";
+    div.append(label,select,link,retry);
+    macCard={select,link,retry,status};
   }
 }
 (async()=>{
@@ -115,7 +116,7 @@ for(const [name,detail,file] of platforms){
     const verifiedMac=name=>verified(name)||verified(name.replace(/\.dmg$/,".zip"));
     const releaseLabel=item=>release.tag_name+(release.prerelease?" · Beta":"")+" · "+Math.round(item.size/1048576)+" MB";
     if(macCard){
-      const {select,link,status}=macCard;
+      const {select,link,retry,status}=macCard;
       // Releases through v43 have an invalid app-bundle resource seal and must
       // not be recommended to macOS visitors, even if their hashes match.
       const macBundleFixed=Number(release.tag_name.slice(1).split(".")[0])>=44;
@@ -128,18 +129,33 @@ for(const [name,detail,file] of platforms){
       if(agent.includes("macintosh")&&!agent.includes("iphone")&&!agent.includes("ipad")&&available){
         const primary=document.getElementById("main-download");primary.href="#macos-download";primary.textContent="Choose your Mac chip";
       }
-      select.addEventListener("change",()=>{
+      // A cross-origin download cannot report completion reliably to this page.
+      // Keep each selected file locked until the visitor explicitly enables another attempt.
+      const started=new Set();
+      function showMacDownload(){
         const item=macAssets[select.value];
-        if(!item){link.hidden=true;link.removeAttribute("href");status.textContent="Choose one architecture to download";return;}
-        status.textContent=releaseLabel(item);
-        link.href=assetURL(item.name);link.textContent="Download "+(item.name.endsWith(".dmg")?".dmg":".zip");link.hidden=false;
-      });
-      // Native anchor navigation: one click, one file; no synthetic or automatic downloads.
-      let lastHref="",lastClick=0;
+        if(!item){link.hidden=true;retry.hidden=true;link.removeAttribute("href");link.removeAttribute("aria-disabled");status.textContent=available?"Choose one architecture to download":status.textContent;return;}
+        const url=assetURL(item.name);
+        const locked=started.has(url);
+        status.textContent=releaseLabel(item)+(locked?" · Download started. Check your browser’s Downloads.":"");
+        link.href=url;link.hidden=false;
+        link.textContent=locked?"Download started":"Download "+(item.name.endsWith(".dmg")?".dmg":".zip");
+        if(locked)link.setAttribute("aria-disabled","true");else link.removeAttribute("aria-disabled");
+        retry.hidden=!locked;
+      }
+      select.addEventListener("change",showMacDownload);
+      // The original anchor alone starts the download; no second navigation is dispatched.
       link.addEventListener("click",event=>{
-        const now=Date.now();
-        if(link.hidden||!macAssets[select.value]||(lastHref===link.href&&now-lastClick<2500)){event.preventDefault();return;}
-        lastHref=link.href;lastClick=now;
+        const item=macAssets[select.value];
+        if(link.hidden||!item||started.has(assetURL(item.name))){event.preventDefault();return;}
+        started.add(assetURL(item.name));
+        showMacDownload();
+      });
+      retry.addEventListener("click",()=>{
+        const item=macAssets[select.value];
+        if(!item)return;
+        started.delete(assetURL(item.name));
+        showMacDownload();
       });
     }
     for(const [name,{div,status}] of cards){

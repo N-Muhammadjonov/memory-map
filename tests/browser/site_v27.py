@@ -42,6 +42,11 @@ def main():
                     page.locator("#macos-download a").dblclick()
                 assert accepted.value.suggested_filename == "MemoryMap-macos-arm64.dmg"
                 assert len(requests) == 1, requests
+                assert page.locator("#macos-download a").get_attribute("aria-disabled") == "true"
+                assert page.locator("#macos-download .download-retry").is_visible()
+                page.locator("#macos-download .download-retry").click()
+                assert page.locator("#macos-download a").get_attribute("aria-disabled") is None
+                assert len(requests) == 1, "Enabling retry must not start another download"
                 page.locator("#macos-chip").select_option("x64")
                 assert page.locator("#macos-download a:visible").count() == 1
                 assert page.locator("#macos-download a").get_attribute("href").endswith("MemoryMap-macos-x64.dmg")

@@ -13,6 +13,7 @@ class Node {
   constructor(tag='div') { this.tag=tag; this.children=[]; this.textContent=''; this.href=''; this.hidden=false; this.events=new Map(); }
   append(...items) { this.children.push(...items); }
   addEventListener(type, fn) { const list=this.events.get(type)||[];list.push(fn);this.events.set(type,list); }
+  setAttribute(name,value) { this[name]=value; }
   removeAttribute(name) { this[name]=''; }
   dispatch(type) { const event={defaultPrevented:false,preventDefault(){this.defaultPrevented=true;}};for(const f of this.events.get(type)||[])f(event);return event; }
 }
@@ -54,12 +55,18 @@ test('first published beta is offered without replacing a stable release', async
   const stable=await render('Windows',{tag_name:'v44',assets},[beta]);assert.equal(stable.get('release-status').textContent,'Latest release: v44');
 });
 
-test('macOS selector exposes only one DMG and suppresses repeated clicks', async () => {
+test('macOS selector exposes only one DMG and locks repeated downloads until explicit retry', async () => {
   const elements=await render('Macintosh',{tag_name:'v44',assets});
   const first=selectChip(elements,'arm64');assert.equal(first.href,root+names[1]);assert.equal(links(elements).filter(a=>a.href.endsWith('.dmg')).length,1);
   assert.equal(first.dispatch('click').defaultPrevented,false);assert.equal(first.dispatch('click').defaultPrevented,true);
+  assert.equal(first.textContent,'Download started');assert.equal(first['aria-disabled'],'true');
+  const retry=mac(elements).children.find(n=>n.tag==='button');assert.equal(retry.hidden,false);
+  assert.equal(first.dispatch('click').defaultPrevented,true);
+  retry.dispatch('click');assert.equal(retry.hidden,true);assert.equal(first['aria-disabled'],'');
+  assert.equal(first.dispatch('click').defaultPrevented,false);
   const second=selectChip(elements,'x64');assert.equal(second,first);assert.equal(second.href,root+names[2]);assert.equal(links(elements).filter(a=>a.href.endsWith('.dmg')).length,1);
   assert.equal(second.dispatch('click').defaultPrevented,false);
+  assert.equal(selectChip(elements,'arm64').dispatch('click').defaultPrevented,true);
   const cleared=selectChip(elements,'');assert.equal(cleared.hidden,true);assert.equal(cleared.href,'');assert.equal(cleared.dispatch('click').defaultPrevented,true);
 });
 
