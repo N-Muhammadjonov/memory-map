@@ -1,4 +1,4 @@
-# Memory map v43 (kod nomi: Xotira)
+# Memory map v44 (kod nomi: Xotira)
 
 Xotira shifrlangan mahalliy omborda Markdown qaydlar, biriktirmalar, vazifalar va bog‘lanishlarni saqlaydi. Qaydlarni muharrir, jadval, Kanban, galereya, taqvim yoki xaritada oching.
 
@@ -6,14 +6,14 @@ Xotira shifrlangan mahalliy omborda Markdown qaydlar, biriktirmalar, vazifalar v
 
 Visit [Memory map](https://memory-map-ecru.vercel.app/) or [GitHub Releases](https://github.com/N-Muhammadjonov/memory-map/releases) for verified platform assets. Download the `.dmg` for macOS (Apple Silicon or Intel) and drag Memory Map to Applications; Windows x64 uses `.exe`, Android uses `.apk`, and Linux x64/ARM64 use `.tar.gz`.
 
-V43 opens in its own application window on macOS, Windows, Linux and Android. Google sign-in and external website links may open the system browser; your notes remain in the app. Windows requires the Microsoft WebView2 Runtime. The encrypted vault remains on the user's device. The optional Account menu uses a separate identity provider and does not upload local notes. Updates can be enabled from the Updates menu. A downloaded binary is checked against the official release SHA-256 digest before it opens on the next launch.
+V44 opens in its own application window on macOS, Windows, Linux and Android. Google sign-in and external website links may open the system browser; your notes remain in the app. Windows requires the Microsoft WebView2 Runtime. The encrypted vault remains on the user's device. The optional Account menu uses a separate identity provider and does not upload local notes. Updates can be enabled from the Updates menu. A downloaded binary is checked against the official release SHA-256 digest before it opens on the next launch.
 
 ## Mac’da ishga tushirish (source archive)
 
 ZIP Downloads ichida ochilgan bo‘lsa, Terminalda quyidagi to‘liq yo‘l bilan ishga tushiring.
 
 ```sh
-sh "$HOME/Downloads/memory-map-v43/start.command"
+sh "$HOME/Downloads/memory-map-v44/start.command"
 ```
 
 ZIP boshqa joyda ochilgan bo‘lsa, Terminalga sh va bitta bo‘sh joy yozing, Finder’dan start.command faylini Terminalga sudrab tashlang va Enter bosing.

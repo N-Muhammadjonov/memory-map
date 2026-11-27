@@ -66,6 +66,9 @@ WEB = Path(__file__).with_name("web")
 STATIC = {
     "/": ("index.html", "text/html"),
     "/manifest.webmanifest": ("manifest.webmanifest", "application/manifest+json"),
+    "/assets/memory-map.svg": ("assets/memory-map.svg", "image/svg+xml"),
+    "/assets/memory-map-192.png": ("assets/memory-map-192.png", "image/png"),
+    "/assets/memory-map-512.png": ("assets/memory-map-512.png", "image/png"),
     "/i18n.js": ("i18n.js", "text/javascript"),
     "/home.js": ("home.js", "text/javascript"),
     "/tour.js": ("tour.js", "text/javascript"),
@@ -452,7 +455,7 @@ class Handler(BaseHTTPRequestHandler):
                 if asset:
                     name, mime = asset
                     data = (WEB / name).read_bytes()
-                    self.start_response(200, len(data), mime + "; charset=utf-8")
+                    self.start_response(200, len(data), mime if mime == "image/png" else mime + "; charset=utf-8")
                     self.wfile.write(data)
                     return
                 if PDF_ASSET.fullmatch(route):

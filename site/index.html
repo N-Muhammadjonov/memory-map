@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Memory map — private knowledge workspace</title>
+<link rel="icon" href="/assets/memory-map.svg" type="image/svg+xml">
 <meta name="description" content="Download Memory map, a local-first encrypted knowledge workspace for notes, 3D graphs, and mind maps.">
 <style>
 :root{color-scheme:light dark;--bg:#faf9f6;--surface:#fff;--fg:#25221f;--muted:#514c46;--line:#c9c2b5;--accent:#6428b9;--action:#6d28c7;--on-action:#fff}
@@ -12,7 +13,7 @@
 a{color:var(--accent);text-underline-offset:3px}a:focus-visible{outline:2px solid var(--accent);outline-offset:4px}
 header,main,footer{max-width:920px;margin:auto;padding:24px clamp(20px,4vw,48px)}
 header{display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--line)}
-.brand{font-weight:700;letter-spacing:-.025em}.header-link{font-size:.92rem}
+.brand{font-weight:700;letter-spacing:-.025em;display:inline-flex;align-items:center;gap:8px}.brand img{width:36px;height:36px}.header-link{font-size:.92rem}
 .hero{padding:36px 0 22px}h1{font-size:clamp(2.5rem,7vw,4.35rem);line-height:1.04;letter-spacing:-.054em;margin:0 0 22px;max-width:720px}
 .lead{color:var(--muted);font-size:1.15rem;max-width:680px;margin:0 0 24px}
 .primary{display:inline-block;padding:12px 20px;border-radius:9px;background:var(--action);color:var(--on-action);font-weight:650;text-decoration:none}
@@ -20,7 +21,7 @@ header{display:flex;align-items:center;justify-content:space-between;border-bott
 h2{font-size:1.35rem;margin:28px 0 12px;letter-spacing:-.02em}
 .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(218px,1fr));gap:12px}
 .card{display:grid;gap:4px;padding:16px;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
-.card strong{font-size:1.03rem}.card small{color:var(--muted);font-size:.86rem}.card a{margin-top:4px}
+.card strong{font-size:1.03rem}.card small{color:var(--muted);font-size:.86rem}.card a{margin-top:4px}.card label{font-size:.86rem;color:var(--muted)}.card select{width:100%;min-height:40px;padding:6px 32px 6px 9px;font:inherit;font-size:.88rem;border:1px solid var(--line);border-radius:7px;background:var(--surface);color:var(--fg)}.card select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}.card [hidden]{display:none!important}
 .features{display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));gap:18px;border-top:1px solid var(--line);padding-top:20px}
 .features h3{font-size:1rem;margin:0}.features p{color:var(--muted);margin:4px 0 0}
 .note{border:1px solid var(--line);border-radius:10px;padding:12px 16px;color:var(--muted);font-size:.9rem;margin-top:20px}
@@ -28,7 +29,7 @@ footer{border-top:1px solid var(--line);display:flex;gap:16px;flex-wrap:wrap;col
 </style>
 </head>
 <body>
-<header><span class="brand">Memory map</span><a class="header-link" href="https://github.com/N-Muhammadjonov/memory-map">Source on GitHub ↗</a></header>
+<header><span class="brand"><img src="/assets/memory-map.svg" width="36" height="36" alt="">Memory map</span><a class="header-link" href="https://github.com/N-Muhammadjonov/memory-map">Source on GitHub ↗</a></header>
 <main>
 <section class="hero">
   <h1>Give your ideas a place to connect.</h1>
@@ -53,22 +54,35 @@ footer{border-top:1px solid var(--line);display:flex;gap:16px;flex-wrap:wrap;col
 const REPO="N-Muhammadjonov/memory-map";
 const platforms=[
   ["Windows","64-bit PC","MemoryMap-windows-x64.exe"],
-  ["macOS","Apple Silicon (M-series)","MemoryMap-macos-arm64.dmg"],
-  ["macOS","Intel","MemoryMap-macos-x64.dmg"],
+  ["macOS","Choose the chip listed in About This Mac",null],
   ["Linux","64-bit x86","MemoryMap-linux-x64.tar.gz"],
   ["Linux","ARM64","MemoryMap-linux-arm64.tar.gz"],
   ["Android","ARM64 / compatible device","MemoryMap-android.apk"],
   ["iPhone and iPad","iOS / iPadOS",null],
 ];
 const cards=new Map();
+let macCard=null;
+const macFiles={arm64:"MemoryMap-macos-arm64.dmg",x64:"MemoryMap-macos-x64.dmg"};
 for(const [name,detail,file] of platforms){
   const div=document.createElement("article");
   div.className="card";
   const title=document.createElement("strong");title.textContent=name;
   const desc=document.createElement("small");desc.textContent=detail;
-  const status=document.createElement("small");status.textContent=file?"Awaiting verified release":"Not available yet";
+  const status=document.createElement("small");status.textContent=file||name==="macOS"?"Awaiting verified release":"Not available yet";
   div.append(title,desc,status);document.getElementById("all").append(div);
   if(file) cards.set(file,{div,status});
+  if(name==="macOS"){
+    div.id="macos-download";
+    const label=document.createElement("label");label.htmlFor="macos-chip";label.textContent="Mac chip";
+    const select=document.createElement("select");select.id="macos-chip";select.disabled=true;
+    for(const [value,text] of [["","Choose your Mac chip"],["arm64","Apple Silicon (M-series)"],["x64","Intel"]]){
+      const option=document.createElement("option");option.value=value;option.textContent=text;select.append(option);
+    }
+    select.value="";
+    const link=document.createElement("a");link.hidden=true;link.textContent="Download .dmg";
+    div.append(label,select,link);
+    macCard={select,link,status};
+  }
 }
 (async()=>{
   const display=document.getElementById("release-status");
@@ -98,12 +112,41 @@ for(const [name,detail,file] of platforms){
     const assetURL=name=>"https://github.com/"+REPO+"/releases/download/"+release.tag_name+"/"+name;
     const verified=name=>(release.assets||[]).find(item=>item.name===name&&item.state==="uploaded"&&
       /^sha256:[0-9a-f]{64}$/.test(item.digest||"")&&item.browser_download_url===assetURL(name));
+    const verifiedMac=name=>verified(name)||verified(name.replace(/\.dmg$/,".zip"));
+    const releaseLabel=item=>release.tag_name+(release.prerelease?" · Beta":"")+" · "+Math.round(item.size/1048576)+" MB";
+    if(macCard){
+      const {select,link,status}=macCard;
+      // Releases through v43 have an invalid app-bundle resource seal and must
+      // not be recommended to macOS visitors, even if their hashes match.
+      const macBundleFixed=Number(release.tag_name.slice(1).split(".")[0])>=44;
+      const macAssets=Object.fromEntries(Object.entries(macFiles).map(([arch,name])=>[arch,macBundleFixed?verifiedMac(name):null]));
+      const available=Object.values(macAssets).filter(Boolean).length;
+      count+=available;
+      for(const option of select.children){if(option.value)option.disabled=!macAssets[option.value];}
+      select.disabled=!available;
+      status.textContent=available?"Choose one architecture to download":(macBundleFixed?"No verified Mac file available":"Mac installer update in progress");
+      if(agent.includes("macintosh")&&!agent.includes("iphone")&&!agent.includes("ipad")&&available){
+        const primary=document.getElementById("main-download");primary.href="#macos-download";primary.textContent="Choose your Mac chip";
+      }
+      select.addEventListener("change",()=>{
+        const item=macAssets[select.value];
+        if(!item){link.hidden=true;link.removeAttribute("href");status.textContent="Choose one architecture to download";return;}
+        status.textContent=releaseLabel(item);
+        link.href=assetURL(item.name);link.textContent="Download "+(item.name.endsWith(".dmg")?".dmg":".zip");link.hidden=false;
+      });
+      // Native anchor navigation: one click, one file; no synthetic or automatic downloads.
+      let lastHref="",lastClick=0;
+      link.addEventListener("click",event=>{
+        const now=Date.now();
+        if(link.hidden||!macAssets[select.value]||(lastHref===link.href&&now-lastClick<2500)){event.preventDefault();return;}
+        lastHref=link.href;lastClick=now;
+      });
+    }
     for(const [name,{div,status}] of cards){
-      // Prefer disk images; keep older published ZIP bundles downloadable until the next release.
-      const item=verified(name)||(name.endsWith(".dmg")?verified(name.replace(/\.dmg$/,".zip")):null);
+      const item=verified(name);
       if(!item)continue;
       const expected=assetURL(item.name);
-      status.textContent=release.tag_name+(release.prerelease?" · Beta":"")+" · "+Math.round(item.size/1048576)+" MB";
+      status.textContent=releaseLabel(item);
       const link=document.createElement("a");link.href=expected;link.textContent="Download "+(item.name.endsWith(".tar.gz")?".tar.gz":"."+item.name.split(".").pop());
       div.append(link);count++;
       if (item.name===preferred) {

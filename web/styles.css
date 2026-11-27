@@ -98,6 +98,7 @@ p, h1, h2, h3 { margin: 0; }
   width: min(100%, 360px); display: grid; gap: 10px; padding: 28px;
   border: 1px solid var(--border); border-radius: 12px; background: var(--sidebar);
 }
+.unlock-logo { display: block; margin: 0 auto 8px; width: 76px; height: 76px; }
 .unlock h1 { font-size: 1.75rem; font-weight: 650; letter-spacing: -.03em; }
 .unlock p { color: var(--muted); font-size: .86rem; margin-bottom: 6px; }
 .unlock .primary { margin-top: 6px; padding: 8px; }
@@ -133,7 +134,7 @@ p, h1, h2, h3 { margin: 0; }
   min-width: 0; min-height: 0; overflow: hidden;
 }
 .sidebar-top { display: flex; align-items: center; justify-content: space-between; padding: 2px 6px 4px; }
-.ws-title { font-weight: 650; font-size: .92rem; letter-spacing: -.01em; }
+.ws-title { display: inline-flex; align-items: center; gap: 6px; font-weight: 650; font-size: .92rem; letter-spacing: -.01em; }
 .side-search {
   display: flex; align-items: center; justify-content: space-between; width: 100%;
   background: transparent; border: 1px solid var(--border); color: var(--muted);

@@ -2,6 +2,7 @@
 #   pip install pyinstaller -r requirements-desktop.txt && pyinstaller xotira.spec
 # Build on each target OS (Windows, macOS, Linux); PyInstaller cannot cross-compile.
 import sys
+import os
 from PyInstaller.utils.hooks import collect_submodules
 
 hidden = collect_submodules("cryptography.hazmat.primitives.kdf") + ["yaml"]
@@ -11,10 +12,10 @@ if sys.platform == "win32":  # publisher shown in the file's Properties and in W
     from PyInstaller.utils.win32.versioninfo import (FixedFileInfo, StringFileInfo, StringStruct, StringTable,
                                                      VarFileInfo, VarStruct, VSVersionInfo)
     version = VSVersionInfo(
-        ffi=FixedFileInfo(filevers=(43, 0, 0, 0), prodvers=(43, 0, 0, 0)),
+        ffi=FixedFileInfo(filevers=(44, 0, 0, 0), prodvers=(44, 0, 0, 0)),
         kids=[StringFileInfo([StringTable("040904B0", [
             StringStruct("CompanyName", "Nurmuhammad"), StringStruct("FileDescription", "Memory map"),
-            StringStruct("ProductName", "Memory map"), StringStruct("ProductVersion", "43"),
+            StringStruct("ProductName", "Memory map"), StringStruct("ProductVersion", "44"),
             StringStruct("LegalCopyright", "Nurmuhammad"), StringStruct("OriginalFilename", "MemoryMap.exe")])]),
               VarFileInfo([VarStruct("Translation", [1033, 1200])])])
 
@@ -26,5 +27,7 @@ a = Analysis(
     excludes=["tkinter", "unittest", "pydoc"],
 )
 pyz = PYZ(a.pure)
+mac_identity = os.environ.get("APPLE_SIGN_IDENTITY") if sys.platform == "darwin" and os.environ.get("APPLE_CERT_BASE64") else None
 exe = EXE(pyz, a.scripts, a.binaries, a.datas, [], name="MemoryMap", console=True, upx=False,
-          **({"version": version} if version else {}))
+          codesign_identity=mac_identity,
+          **({"version": version, "icon": "assets/memory-map.ico"} if version else {}))

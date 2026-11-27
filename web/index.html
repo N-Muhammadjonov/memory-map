@@ -5,13 +5,15 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="color-scheme" content="dark">
   <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="icon" href="/assets/memory-map.svg" type="image/svg+xml">
   <title>Memory map</title>
-  <link rel="stylesheet" href="/styles.css?v=36">
-  <script type="module" src="/app.js?v=42"></script>
+  <link rel="stylesheet" href="/styles.css?v=44">
+  <script type="module" src="/app.js?v=44"></script>
 </head>
 <body>
   <main class="gate" id="gate">
     <form class="unlock" id="unlock">
+      <img class="unlock-logo" src="/assets/memory-map.svg" width="76" height="76" alt="">
       <h1>Memory map</h1>
       <p id="gate-message">Opening your encrypted local vault…</p>
       <label for="password" data-i18n="gate-pw">Password</label>
@@ -37,7 +39,7 @@
     <!-- Library sidebar -->
     <aside class="library" aria-label="Vault">
       <div class="sidebar-top">
-        <span class="ws-title">Memory map</span>
+        <span class="ws-title"><img src="/assets/memory-map.svg" width="24" height="24" alt=""> Memory map</span>
       </div>
 
       <button type="button" id="open-cmd" class="side-search">

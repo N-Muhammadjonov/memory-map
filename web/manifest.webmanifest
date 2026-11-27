@@ -5,5 +5,19 @@
   "start_url": "/",
   "display": "standalone",
   "background_color": "#17181c",
-  "theme_color": "#6947c9"
+  "theme_color": "#6947c9",
+  "icons": [
+    {
+      "src": "/assets/memory-map-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/assets/memory-map-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
 }

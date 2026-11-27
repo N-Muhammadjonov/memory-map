@@ -117,12 +117,13 @@ def _run_platform_webview(url: str, loaded: Callable | None, prepare_close: Clos
 
 def _run_qt(url: str, origin: str, loaded: Callable | None, prepare_close: CloseRequest | None) -> None:
     from PySide6.QtCore import QObject, QUrl, Signal
-    from PySide6.QtGui import QDesktopServices
+    from PySide6.QtGui import QDesktopServices, QIcon
     from PySide6.QtWidgets import QApplication, QFileDialog, QMainWindow, QMessageBox
     from PySide6.QtWebEngineCore import QWebEnginePage, QWebEngineProfile, QWebEngineSettings
     from PySide6.QtWebEngineWidgets import QWebEngineView
 
     app = QApplication.instance() or QApplication([])
+    app.setWindowIcon(QIcon(str(Path(__file__).with_name("web") / "assets" / "memory-map-192.png")))
 
     class CloseSignals(QObject):
         script = Signal(str)

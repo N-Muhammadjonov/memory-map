@@ -1,6 +1,7 @@
 """Pack a smoke-tested executable for one platform and architecture."""
 from pathlib import Path
 import hashlib
+import json
 import os
 import plistlib
 import shutil
@@ -23,9 +24,13 @@ elif "macos" in name:
     launch = app / "Contents" / "MacOS"
     launch.mkdir(parents=True, exist_ok=True)
     shutil.copy2(binary, launch / "MemoryMap")
+    resources = app / "Contents" / "Resources"
+    resources.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(Path(__file__).resolve().parents[1] / "assets" / "memory-map.icns", resources / "MemoryMap.icns")
     with (app / "Contents" / "Info.plist").open("wb") as stream:
         plistlib.dump({
             "CFBundleExecutable": "MemoryMap",
+            "CFBundleIconFile": "MemoryMap.icns",
             "CFBundleDisplayName": "Memory map",
             "CFBundleName": "Memory map",
             "CFBundleIdentifier": "com.memorymap.app",
@@ -40,7 +45,11 @@ elif "macos" in name:
     publisher_configured = bool(os.environ.get("APPLE_CERT_BASE64") and sign)
     if publisher_configured:
         subprocess.run(["codesign", "--force", "--options", "runtime", "--timestamp", "--sign", sign, str(app)], check=True)
-        subprocess.run(["codesign", "--verify", "--deep", "--strict", str(app)], check=True)
+    else:
+        # PyInstaller signs its stand-alone executable; after wrapping it in a
+        # bundle the signature must bind the final Info.plist and resources.
+        subprocess.run(["codesign", "--force", "--sign", "-", "--timestamp=none", str(app)], check=True)
+    subprocess.run(["codesign", "--verify", "--deep", "--strict", "--verbose=2", str(app)], check=True)
     # Disk image contains the exact application bundle and an Applications shortcut.
     with tempfile.TemporaryDirectory(prefix="memory-map-dmg-") as tmp:
         staging = Path(tmp) / "image"
@@ -51,8 +60,10 @@ elif "macos" in name:
                         "-fs", "HFS+", "-format", "UDZO", "-ov", str(package)], check=True)
         if publisher_configured:
             subprocess.run(["codesign", "--force", "--timestamp", "--sign", sign, str(package)], check=True)
-            subprocess.run(["xcrun", "notarytool", "submit", str(package), "--apple-id", os.environ["APPLE_ID"],
-                            "--team-id", os.environ["APPLE_TEAM_ID"], "--password", os.environ["APPLE_APP_PASSWORD"], "--wait"], check=True)
+            notarization = subprocess.run(["xcrun", "notarytool", "submit", str(package), "--apple-id", os.environ["APPLE_ID"],
+                            "--team-id", os.environ["APPLE_TEAM_ID"], "--password", os.environ["APPLE_APP_PASSWORD"], "--wait", "--output-format", "json"],
+                            check=True, capture_output=True, text=True)
+            assert json.loads(notarization.stdout)["status"] == "Accepted", "Apple notarization was not accepted"
             subprocess.run(["xcrun", "stapler", "staple", str(package)], check=True)
             subprocess.run(["xcrun", "stapler", "validate", str(package)], check=True)
         # Verify the actual compressed image, not just the staged files.
@@ -68,8 +79,14 @@ elif "macos" in name:
             assert (mounted_app / "Contents" / "Info.plist").read_bytes() == (app / "Contents" / "Info.plist").read_bytes(), "Bundle metadata changed in DMG"
             with mounted_binary.open("rb") as packed, (launch / "MemoryMap").open("rb") as original:
                 assert hashlib.file_digest(packed, "sha256").digest() == hashlib.file_digest(original, "sha256").digest(), "Executable changed in DMG"
+            assert (mounted_app / "Contents" / "Resources" / "MemoryMap.icns").read_bytes() == (resources / "MemoryMap.icns").read_bytes(), "App icon missing or changed in DMG"
+            subprocess.run(["codesign", "--verify", "--deep", "--strict", "--verbose=2", str(mounted_app)], check=True)
             if publisher_configured:
-                subprocess.run(["codesign", "--verify", "--deep", "--strict", str(mounted_app)], check=True)
+                subprocess.run(["spctl", "--assess", "--type", "execute", "--verbose=2", str(mounted_app)], check=True)
+            else:
+                print("Bundle seal validated; Developer ID publisher/notarization verification is not configured.")
+            # Test the executable from the final sealed bundle, not its original copy.
+            subprocess.run([sys.executable, str(Path(__file__).resolve().parents[1] / "tests" / "smoke_binary.py"), str(mounted_binary)], check=True, timeout=120)
             print(f"PASS: {package.name} mounts, bundle and executable match, Applications shortcut present")
         finally:
             subprocess.run(["hdiutil", "detach", str(mount)], check=True)
