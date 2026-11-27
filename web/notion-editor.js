@@ -895,6 +895,7 @@ export class NotionEditor {
       this.bubbleTimer = setTimeout(() => this.updateBubble(), 25);
     });
     document.addEventListener("selectionchange", () => {
+      this.rememberBubbleSelection();
       this.syncEmptyCaret();
       if (this.isMouseSelecting) {
         this.bubble.hidden = true;
@@ -1120,6 +1121,7 @@ export class NotionEditor {
       if (this.readOnly || !fontPick.value) return;
       const value = fontPick.value === "default" ? null : fontPick.value;
       if (value === null || FONT_SIZE_POINTS.includes(Number(value))) {
+        this.rememberBubbleSelection();
         this.restoreBubbleSelection();
         if (applyInlineStyle(this.doc, window.getSelection(), "size", value)) this.emit();
       }
@@ -1129,6 +1131,7 @@ export class NotionEditor {
     const blockPick = this.bubble.querySelector(".bubble-block-pick");
     blockPick?.addEventListener("change", () => {
       if (this.readOnly || !blockPick.value) return;
+      this.rememberBubbleSelection();
       this.restoreBubbleSelection();
       this.toggleBlockTag(blockPick.value);
       blockPick.value = "";
