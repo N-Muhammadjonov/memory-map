@@ -52,7 +52,22 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends libnss3 libgbm1 libegl1 libopengl0 libxkbcommon-x11-0 libxcb-cursor0 libxcb-xinerama0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-render-util0
-      - run: python -m pip install pyinstaller==6.22.3 -r requirements-desktop.txt
+      - if: matrix.name != 'MemoryMap-macos-x64'
+        run: python -m pip install pyinstaller==6.22.3 -r requirements-desktop.txt
+      - name: Build Intel macOS cryptography with static OpenSSL
+        if: matrix.name == 'MemoryMap-macos-x64'
+        run: |
+          export OPENSSL_DIR="$(brew --prefix openssl@3)"
+          export OPENSSL_STATIC=1
+          test -f "$OPENSSL_DIR/lib/libssl.a"
+          test -f "$OPENSSL_DIR/lib/libcrypto.a"
+          python -m pip install --no-cache-dir --no-binary cryptography pyinstaller==6.22.3 -r requirements-desktop.txt
+          binding=$(python -c 'from cryptography.hazmat.bindings import _rust; print(_rust.__file__)')
+          otool -L "$binding"
+          if otool -L "$binding" | grep -E 'lib(ssl|crypto)\.[^ ]*dylib'; then
+            echo "Intel cryptography must not depend on a conflicting dynamic OpenSSL library."
+            exit 1
+          fi
       - run: python -m unittest discover -s tests
       - name: Verify actual native desktop window
         if: runner.os != 'Linux' || matrix.name == 'MemoryMap-linux-x64'
