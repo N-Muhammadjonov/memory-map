@@ -5,7 +5,7 @@ from playwright.sync_api import sync_playwright
 
 SITE = Path(__file__).resolve().parents[2] / "site" / "index.html"
 REPO = "N-Muhammadjonov/memory-map"
-NAMES = ["MemoryMap-windows-x64.exe", "MemoryMap-macos-arm64.zip", "MemoryMap-macos-x64.zip",
+NAMES = ["MemoryMap-windows-x64.exe", "MemoryMap-macos-arm64.dmg", "MemoryMap-macos-x64.dmg",
          "MemoryMap-linux-x64.tar.gz", "MemoryMap-linux-arm64.tar.gz", "MemoryMap-android.apk"]
 RELEASE = {"tag_name": "v39", "assets": [
     {"name": name, "size": 18_000_000, "state": "uploaded", "digest": "sha256:" + "a" * 64,

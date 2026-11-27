@@ -224,7 +224,12 @@ jobs:
         if: steps.version.outputs.create == 'true'
         run: |
           cd out
-          sha256sum MemoryMap-* > SHA256SUMS.txt
+          expected=(MemoryMap-android.apk MemoryMap-linux-arm64.bin MemoryMap-linux-arm64.tar.gz MemoryMap-linux-x64.bin MemoryMap-linux-x64.tar.gz MemoryMap-macos-arm64.bin MemoryMap-macos-arm64.dmg MemoryMap-macos-x64.bin MemoryMap-macos-x64.dmg MemoryMap-windows-x64.exe)
+          for asset in "${expected[@]}"; do test -s "$asset"; done
+          shopt -s nullglob
+          actual=(MemoryMap-*)
+          test "${#actual[@]}" -eq "${#expected[@]}"
+          sha256sum "${expected[@]}" > SHA256SUMS.txt
       - uses: softprops/action-gh-release@v2
         if: steps.version.outputs.create == 'true'
         with:

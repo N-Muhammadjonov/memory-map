@@ -13,8 +13,8 @@ chooser, with a 1 GiB size limit per save. Keep Android System WebView current.
 | Platform | Release asset |
 |---|---|
 | Windows x64 | MemoryMap-windows-x64.exe |
-| macOS Apple Silicon | MemoryMap-macos-arm64.zip (application bundle) |
-| macOS Intel | MemoryMap-macos-x64.zip (application bundle) |
+| macOS Apple Silicon | MemoryMap-macos-arm64.dmg (drag the app to Applications) |
+| macOS Intel | MemoryMap-macos-x64.dmg (drag the app to Applications) |
 | Linux x64 | MemoryMap-linux-x64.tar.gz |
 | Linux ARM64 | MemoryMap-linux-arm64.tar.gz |
 | Android ARM64 and x86_64 (Android 7.0+) | MemoryMap-android.apk |

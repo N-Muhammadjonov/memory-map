@@ -53,8 +53,8 @@ footer{border-top:1px solid var(--line);display:flex;gap:16px;flex-wrap:wrap;col
 const REPO="N-Muhammadjonov/memory-map";
 const platforms=[
   ["Windows","64-bit PC","MemoryMap-windows-x64.exe"],
-  ["macOS","Apple Silicon (M-series)","MemoryMap-macos-arm64.zip"],
-  ["macOS","Intel","MemoryMap-macos-x64.zip"],
+  ["macOS","Apple Silicon (M-series)","MemoryMap-macos-arm64.dmg"],
+  ["macOS","Intel","MemoryMap-macos-x64.dmg"],
   ["Linux","64-bit x86","MemoryMap-linux-x64.tar.gz"],
   ["Linux","ARM64","MemoryMap-linux-arm64.tar.gz"],
   ["Android","ARM64 / compatible device","MemoryMap-android.apk"],
@@ -95,13 +95,16 @@ for(const [name,detail,file] of platforms){
       agent.includes("windows")&&!agent.includes("arm")?"MemoryMap-windows-x64.exe":
       agent.includes("linux")&&agent.includes("x86_64")?"MemoryMap-linux-x64.tar.gz":
       agent.includes("linux")&&(agent.includes("aarch64")||agent.includes("arm64"))?"MemoryMap-linux-arm64.tar.gz":"";
-    for(const item of release.assets||[]){
-      if(!cards.has(item.name)||item.state!=="uploaded"||!/^sha256:[0-9a-f]{64}$/.test(item.digest||""))continue;
-      const expected="https://github.com/"+REPO+"/releases/download/"+release.tag_name+"/"+item.name;
-      if(item.browser_download_url!==expected)continue;
-      const {div,status}=cards.get(item.name);
+    const assetURL=name=>"https://github.com/"+REPO+"/releases/download/"+release.tag_name+"/"+name;
+    const verified=name=>(release.assets||[]).find(item=>item.name===name&&item.state==="uploaded"&&
+      /^sha256:[0-9a-f]{64}$/.test(item.digest||"")&&item.browser_download_url===assetURL(name));
+    for(const [name,{div,status}] of cards){
+      // Prefer disk images; keep older published ZIP bundles downloadable until the next release.
+      const item=verified(name)||(name.endsWith(".dmg")?verified(name.replace(/\.dmg$/,".zip")):null);
+      if(!item)continue;
+      const expected=assetURL(item.name);
       status.textContent=release.tag_name+(release.prerelease?" · Beta":"")+" · "+Math.round(item.size/1048576)+" MB";
-      const link=document.createElement("a");link.href=expected;link.textContent="Download";
+      const link=document.createElement("a");link.href=expected;link.textContent="Download "+(item.name.endsWith(".tar.gz")?".tar.gz":"."+item.name.split(".").pop());
       div.append(link);count++;
       if (item.name===preferred) {
         const primary=document.getElementById("main-download");

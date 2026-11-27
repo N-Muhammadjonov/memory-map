@@ -1,6 +1,6 @@
 // Home: the first screen. Pure DOM rendering from data the app already holds; actions proxy existing buttons.
 const DAY = 86400000;
-export const VERSION = "v42";
+export const VERSION = "v43";
 
 function el(tag, className, text) {
   const node = document.createElement(tag);
