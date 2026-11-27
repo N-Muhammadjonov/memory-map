@@ -1,3 +1,4 @@
+import {saveBlob} from "./native-downloads.js";
 import {branches, canReparent, descendants, markdownOutline, MAX_DEPTH, MAX_LINKS, MAX_TOPICS,
   MAX_TOPIC_TITLE, mindLayout, POSITION_LIMIT, readMindMap, TOPIC_COLORS, TOPIC_HEIGHT, TOPIC_SHAPES,
   topicTitle} from "./mind-map-model.js";
@@ -972,11 +973,10 @@ export class MindMapBoard {
     this.finishRename(true);
     const title = safeFileName(this.tree.root.title);
     const data = native ? JSON.stringify(this.map, null, 2) + "\n" : markdownOutline(this.map);
-    const url = URL.createObjectURL(new Blob([data], {type: native ? "application/json" : "text/markdown"}));
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = title + (native ? ".mindmap" : ".md");
-    link.click();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    void saveBlob(new Blob([data], {type: native ? "application/json" : "text/markdown"}),
+      title + (native ? ".mindmap" : ".md")).catch(error => {
+      this.saveStatus.textContent = error.message;
+      this.saveStatus.classList.add("error");
+    });
   }
 }

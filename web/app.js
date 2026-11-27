@@ -1,3 +1,4 @@
+import {saveBlob, dataUrlBlob} from "./native-downloads.js";
 import {setupAIPanel} from "./ai-panel.js";
 import {localDateTime, reminderCalendarFile, utcReminder} from "./work-planning.js";
 import {NoteGraph} from "./graph.js";
@@ -1502,16 +1503,12 @@ $("show-reminders").addEventListener("click", () => {
   renderReminders();
 });
 $("reminder-close").addEventListener("click", () => $("reminder-dialog").close());
-$("export-reminder").addEventListener("click", () => {
+$("export-reminder").addEventListener("click", () => void run(async () => {
   const note = state.note;
   const at = state.reminders[note?.id];
   if (!at) return;
-  const file = new Blob([reminderCalendarFile(note.id, note.title, at)], {type: "text/calendar;charset=utf-8"});
-  const url = URL.createObjectURL(file);
-  const link = document.createElement("a");
-  link.href = url; link.download = "xotira-reminder.ics"; link.click();
-  setTimeout(() => URL.revokeObjectURL(url), 5_000);
-});
+  await saveBlob(new Blob([reminderCalendarFile(note.id, note.title, at)], {type: "text/calendar;charset=utf-8"}), "xotira-reminder.ics");
+}));
 
 function updateNavButtons() {
   if ($("nav-back")) $("nav-back").disabled = state.histIdx <= 0;
@@ -1652,6 +1649,20 @@ async function flush() {
     return false;
   }
 }
+
+// Native window close is a save request, not an abrupt termination of the local server.
+window.memoryMapPrepareClose = async () => {
+  let ok = false;
+  try {
+    if (!state.unlocked || await flush()) {
+      await viewer.flush();
+      await state.fieldWrites;
+      ok = true;
+    }
+  } catch (error) { if (state.unlocked) status(error.message, true); }
+  try { await request("/native-close-ready", {body: {ok}}); }
+  catch (error) { if (state.unlocked) status(error.message, true); }
+};
 
 async function openNote(id, focus = false, view = "note", heading = "", historyIndex = null) {
   if (!state.unlocked) return;
@@ -2044,11 +2055,7 @@ async function download(path, fallback, saveFirst = true) {
   const encoded = disposition.match(/filename\*=UTF-8''(.+)$/)?.[1];
   const name = encoded ? decodeURIComponent(encoded) : fallback;
   const blob = await response.blob();
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url; a.download = name;
-  document.body.append(a); a.click(); a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  await saveBlob(blob, name);
 }
 
 async function updateStatus() {
@@ -2818,12 +2825,9 @@ $("manual-graph").addEventListener("click", () => {
   renderGraph();
 });
 $("fit").addEventListener("click", () => graph.fit());
-$("snapshot-btn").addEventListener("click", () => {
-  const a = document.createElement("a");
-  a.href = graph.exportPNG();
-  a.download = `MemoryMap-Graph-${todayISO()}.png`;
-  a.click();
-});
+$("snapshot-btn").addEventListener("click", () => void run(() =>
+  saveBlob(dataUrlBlob(graph.exportPNG()), `MemoryMap-Graph-${todayISO()}.png`)
+));
 $("labels").addEventListener("click", () => {
   graph.showLabels = !graph.showLabels;
   $("labels").setAttribute("aria-pressed", String(graph.showLabels));
@@ -3273,11 +3277,7 @@ $("share-export-html")?.addEventListener("click", () => void run(async () => {
   const encoded = disposition.match(/filename\*=UTF-8''(.+)$/)?.[1];
   const name = encoded ? decodeURIComponent(encoded) : "public-note.html";
   const blob = await response.blob();
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url; a.download = name;
-  document.body.append(a); a.click(); a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  if (!await saveBlob(blob, name)) return;
   status(password ? `Encrypted static HTML exported (${name}).` : `Static HTML exported (${name}).`);
 }));
 $("share-export-site")?.addEventListener("click", () => void run(() =>
@@ -3358,11 +3358,7 @@ $("transfer-form")?.addEventListener("submit", event => {
         const encoded = disposition.match(/filename\*=UTF-8''(.+)$/)?.[1];
         const name = encoded ? decodeURIComponent(encoded) : "MemoryMap-Transfer.zip";
         const blob = await response.blob();
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url; a.download = name;
-        document.body.append(a); a.click(); a.remove();
-        setTimeout(() => URL.revokeObjectURL(url), 60_000);
+        if (!await saveBlob(blob, name)) return;
         transferDialog.close();
         status("Encrypted account transfer ZIP created.");
       } else {

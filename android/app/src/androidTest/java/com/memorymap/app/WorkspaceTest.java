@@ -3,6 +3,13 @@ package com.memorymap.app;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.platform.app.InstrumentationRegistry;
 import android.content.Context;
+import android.content.Intent;
+import android.app.Instrumentation;
+import android.webkit.WebView;
+import android.os.SystemClock;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import com.chaquo.python.Python;
 import com.chaquo.python.android.AndroidPlatform;
 import org.junit.Test;
@@ -84,5 +91,61 @@ public class WorkspaceTest {
             assertTrue(request(location[0],location[1],"/api/unlock",body).contains("true"));
             assertTrue(request(location[0],location[1],"/api/notes/"+id,null).contains("Encrypted mobile test"));
         } finally { entry.callAttr("stop"); }
+        verifyNativeWindow(context);
+    }
+
+    private static String evaluate(Instrumentation runner, WebView view, String script) throws Exception {
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<String> result = new AtomicReference<>();
+        runner.runOnMainSync(() -> view.evaluateJavascript(script, value -> {
+            result.set(value);
+            latch.countDown();
+        }));
+        assertTrue("WebView JavaScript callback did not complete", latch.await(10, TimeUnit.SECONDS));
+        return result.get();
+    }
+
+    private static void waitFor(Instrumentation runner, WebView view, String condition) throws Exception {
+        long deadline = SystemClock.elapsedRealtime() + 45_000;
+        while (SystemClock.elapsedRealtime() < deadline) {
+            if ("true".equals(evaluate(runner, view, condition))) return;
+            SystemClock.sleep(250);
+        }
+        fail("Native WebView did not reach the expected state: " + condition);
+    }
+
+    private static void verifyNativeWindow(Context context) throws Exception {
+        Instrumentation runner = InstrumentationRegistry.getInstrumentation();
+        MainActivity activity = (MainActivity) runner.startActivitySync(new Intent(context, MainActivity.class)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+        try {
+            AtomicReference<WebView> viewRef = new AtomicReference<>();
+            long deadline = SystemClock.elapsedRealtime() + 45_000;
+            do {
+                runner.runOnMainSync(() -> viewRef.set(activity.findViewById(R.id.workspace_webview)));
+                if (viewRef.get() != null) break;
+                SystemClock.sleep(200);
+            } while (SystemClock.elapsedRealtime() < deadline);
+            WebView view = viewRef.get();
+            assertNotNull("The launcher must host a WebView, not open a browser activity", view);
+            waitFor(runner, view, "Boolean(document.querySelector('#password:enabled'))");
+            assertEquals("true", evaluate(runner, view, "location.origin.startsWith('http://127.0.0.1:')"));
+            assertEquals("true", evaluate(runner, view, "typeof window.MemoryMapNativeDownloads?.postMessage === 'function'"));
+            evaluate(runner, view, "document.getElementById('password').value='disposable-native-android-password';" +
+                "document.getElementById('confirmation').value='disposable-native-android-password';" +
+                "document.getElementById('unlock-button').click(); true");
+            waitFor(runner, view, "Boolean(document.querySelector('#workspace:not([hidden])'))");
+            evaluate(runner, view, "document.getElementById('create-note').click(); true");
+            waitFor(runner, view, "Boolean(document.querySelector('#create-dialog[open]'))");
+            evaluate(runner, view, "document.getElementById('new-title').value='Native Android window fixture';" +
+                "document.getElementById('create-form').requestSubmit(); true");
+            waitFor(runner, view, "!document.querySelector('#create-dialog[open]')");
+            assertFalse("The native launcher must remain open", activity.isFinishing());
+            String[] launch = VaultService.url.split("/#", 2);
+            assertTrue(request(launch[0], launch[1], "/api/graph", null).contains("Native Android window fixture"));
+        } finally {
+            runner.runOnMainSync(activity::finish);
+            context.stopService(new Intent(context, VaultService.class));
+        }
     }
 }

@@ -23,8 +23,8 @@ from http import HTTPStatus
 from http.cookies import SimpleCookie
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from threading import RLock
-from typing import Any, BinaryIO
+from threading import Event, RLock, Thread
+from typing import Any, BinaryIO, Callable
 from urllib.parse import parse_qs, quote, urlsplit
 
 from crypto_backend import InvalidTag
@@ -91,6 +91,7 @@ STATIC = {
     "/canvas-board.js": ("canvas-board.js", "text/javascript"),
     "/shape-recognition.js": ("shape-recognition.js", "text/javascript"),
     "/note-tools.js": ("note-tools.js", "text/javascript"),
+    "/native-downloads.js": ("native-downloads.js", "text/javascript"),
     "/markdown.js": ("markdown.js", "text/javascript"),
     "/code-tools.js": ("code-tools.js", "text/javascript"),
     "/note-renderers.js": ("note-renderers.js", "text/javascript"),
@@ -204,6 +205,9 @@ class Server(ThreadingHTTPServer):
         self.agent_proposals_enabled = False
         self.agent_proposals: dict[str, dict[str, Any]] = {}
         self.mutex = RLock()
+        self.native_close_event = Event()
+        self.native_close_pending = False
+        self.native_close_ok = False
         self.ai = AIService(vault, self.mutex, developer=ai_developer)
         self.backup_dir = backup_dir
         self.backup_error = ""
@@ -215,6 +219,23 @@ class Server(ThreadingHTTPServer):
         super().__init__(("127.0.0.1", port), Handler)
         self.host = f"127.0.0.1:{self.server_port}"
         self.origin = f"http://{self.host}"
+
+    def prepare_native_close(self, trigger: Callable[[str], None]) -> bool:
+        """Let the editor persist pending changes before stopping its local server."""
+        with self.mutex:
+            if self.vault.cipher is None:
+                return True
+            if self.native_close_pending:
+                return False
+            self.native_close_pending = True
+            self.native_close_ok = False
+            self.native_close_event.clear()
+        try:
+            trigger("window.memoryMapPrepareClose?.()")
+            return self.native_close_event.wait(15) and self.native_close_ok
+        finally:
+            with self.mutex:
+                self.native_close_pending = False
 
     def close_agent_access(self) -> None:
         self.agent_enabled = False
@@ -577,6 +598,13 @@ class Handler(BaseHTTPRequestHandler):
                 "lastBackup": self.server.last_backup,
                 "automaticBackup": self.server.backup_dir is not None,
             })
+            return
+        if route == "/api/native-close-ready" and post:
+            if not self.server.native_close_pending or type(body.get("ok")) is not bool:
+                raise VaultError("No native window close is pending.", 409)
+            self.server.native_close_ok = body["ok"]
+            self.server.native_close_event.set()
+            self.write_json({"ok": True})
             return
         if route in {"/api/unlock", "/api/create"} and post:
             self.server.session_status()
@@ -1206,7 +1234,9 @@ def main() -> None:
     parser.add_argument("--port", type=int, default=0, help="Local port (for example, 4720 for an AI agent)")
     parser.add_argument("--restore-zip", type=Path, help="Restore a portable ZIP to a new vault")
     parser.add_argument("--ai-dev", action="store_true", help="Enable offline AI developer mode")
-    parser.add_argument("--no-browser", action="store_true", help="Print the URL in Terminal")
+    launch_mode = parser.add_mutually_exclusive_group()
+    launch_mode.add_argument("--no-browser", action="store_true", help="Run headless and print the local URL")
+    launch_mode.add_argument("--browser", action="store_true", help="Explicitly open the workspace in the default browser")
     args = parser.parse_args()
     path = args.vault.expanduser().resolve()
     backup_dir = args.backup_dir.expanduser().resolve() if args.backup_dir else None
@@ -1229,14 +1259,28 @@ def main() -> None:
             print(f"Memory map is running: {url}\nClose this window to quit.", flush=True)
             print(f"AI Brain API: {server.origin}/api/agent/health", flush=True)
             print(f"Vault: {path}", flush=True)
-            if not args.no_browser:
-                webbrowser.open(url)
             try:
-                server.serve_forever(poll_interval=0.5)
+                if args.no_browser or args.browser:
+                    if args.browser:
+                        webbrowser.open(url)
+                    server.serve_forever(poll_interval=0.5)
+                else:
+                    # Native UI owns the main thread. Closing its window stops the local service.
+                    from native_shell import NativeWindowError, run_window
+                    thread = Thread(target=server.serve_forever, kwargs={"poll_interval": 0.5}, daemon=True)
+                    thread.start()
+                    try:
+                        run_window(url, prepare_close=server.prepare_native_close)
+                    except NativeWindowError as error:
+                        raise VaultError(str(error)) from error
+                    finally:
+                        server.shutdown()
+                        thread.join(timeout=5)
             except KeyboardInterrupt:
                 pass
             finally:
-                vault.lock()
+                with server.mutex:
+                    vault.lock()
     except (VaultError, OSError) as error:
         raise SystemExit(f"Xotira: {error}") from error
 

@@ -1,3 +1,4 @@
+import {saveBlob} from "./native-downloads.js";
 import {t} from "./i18n.js";
 /**
  * Xotira v8 Unified Rich Document Editor (True Notion + Obsidian Experience)
@@ -831,12 +832,10 @@ export class NotionEditor {
           void this.runSnippet(box, cact, source, language);
         } else if (cact.dataset.cact === "download") {
           const blob = new Blob([source], {type: "text/plain;charset=utf-8"});
-          const url = URL.createObjectURL(blob);
-          const link = document.createElement("a");
-          link.href = url;
-          link.download = `snippet.${languageExtension(language)}`;
-          link.click();
-          setTimeout(() => URL.revokeObjectURL(url), 10_000);
+          void saveBlob(blob, `snippet.${languageExtension(language)}`).catch(error => {
+            const feedback = box.querySelector("[data-code-feedback]");
+            if (feedback) feedback.textContent = error.message;
+          });
         }
         return;
       }

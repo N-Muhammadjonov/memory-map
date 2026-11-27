@@ -47,7 +47,7 @@ CI builds Windows x64, macOS Apple Silicon and Intel, and Linux x64 and ARM64.
 The Android job packages the same local Python core, verifies Java crypto
 compatibility and starts the bundled service in an emulator. The Android release
 uses a stable private signing key stored as GitHub Actions secrets. The running
-workspace opens in the system browser from the Android launcher.
+workspace opens in an Android-native window, while external OAuth uses the system browser.
 
 Each desktop build runs existing tests and a standalone smoke test. The release
 job groups verified distributives with SHA256SUMS.txt and creates a draft for

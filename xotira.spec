@@ -1,5 +1,5 @@
 # PyInstaller recipe: one self-contained "Memory map" program (no Python install needed on the user's machine).
-#   pip install pyinstaller -r requirements.txt && pyinstaller xotira.spec
+#   pip install pyinstaller -r requirements-desktop.txt && pyinstaller xotira.spec
 # Build on each target OS (Windows, macOS, Linux); PyInstaller cannot cross-compile.
 import sys
 from PyInstaller.utils.hooks import collect_submodules
@@ -11,10 +11,10 @@ if sys.platform == "win32":  # publisher shown in the file's Properties and in W
     from PyInstaller.utils.win32.versioninfo import (FixedFileInfo, StringFileInfo, StringStruct, StringTable,
                                                      VarFileInfo, VarStruct, VSVersionInfo)
     version = VSVersionInfo(
-        ffi=FixedFileInfo(filevers=(41, 0, 0, 0), prodvers=(41, 0, 0, 0)),
+        ffi=FixedFileInfo(filevers=(42, 0, 0, 0), prodvers=(42, 0, 0, 0)),
         kids=[StringFileInfo([StringTable("040904B0", [
             StringStruct("CompanyName", "Nurmuhammad"), StringStruct("FileDescription", "Memory map"),
-            StringStruct("ProductName", "Memory map"), StringStruct("ProductVersion", "41"),
+            StringStruct("ProductName", "Memory map"), StringStruct("ProductVersion", "42"),
             StringStruct("LegalCopyright", "Nurmuhammad"), StringStruct("OriginalFilename", "MemoryMap.exe")])]),
               VarFileInfo([VarStruct("Translation", [1033, 1200])])])
 

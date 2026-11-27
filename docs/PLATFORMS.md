@@ -1,10 +1,14 @@
 # Memory map distribution
 
 The installed application keeps an encrypted vault on the user's device. Desktop
-install bundles run their own loopback service and open the existing workspace
-without requiring a user to install Python. Android embeds the same Python
-workspace with an Android-native cryptographic backend and a foreground
-service.
+install bundles run their own loopback service and display the workspace inside a
+native application window without requiring Python or a browser tab. Windows
+uses the WebView2 Runtime, macOS uses the system WKWebView, and Linux bundles
+Qt WebEngine. Android embeds the same Python workspace in its own WebView,
+with an Android-native cryptographic backend and a foreground service.
+External website links and Google OAuth use the system browser; it is not
+used for the local workspace. Android file exports use the system document
+chooser, with a 1 GiB size limit per save. Keep Android System WebView current.
 
 | Platform | Release asset |
 |---|---|

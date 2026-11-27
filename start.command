@@ -31,7 +31,7 @@ fi
 if [ ! -x "$VENV/bin/python" ]; then
     "$PYTHON_BIN" -m venv "$VENV"
 fi
-if ! "$VENV/bin/python" -c 'import yaml; from cryptography.hazmat.primitives.kdf.argon2 import Argon2id' 2>/dev/null; then
-    "$VENV/bin/python" -m pip install -r requirements.txt
+if ! "$VENV/bin/python" -c 'import sys, yaml; from cryptography.hazmat.primitives.kdf.argon2 import Argon2id; __import__("PySide6" if sys.platform.startswith("linux") else "webview")' 2>/dev/null; then
+    "$VENV/bin/python" -m pip install -r requirements-desktop.txt
 fi
 exec "$VENV/bin/python" app.py "$@"
