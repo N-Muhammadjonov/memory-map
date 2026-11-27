@@ -80,6 +80,7 @@ STATIC = {
     "/graph-suggestions.js": ("graph-suggestions.js", "text/javascript"),
     "/graph.js": ("graph.js", "text/javascript"),
     "/notion-editor.js": ("notion-editor.js", "text/javascript"),
+    "/inline-format.js": ("inline-format.js", "text/javascript"),
     "/editor.js": ("editor.js", "text/javascript"),
     "/database-view.js": ("database-view.js", "text/javascript"),
     "/work-planning.js": ("work-planning.js", "text/javascript"),
@@ -1288,8 +1289,44 @@ def main() -> None:
         raise SystemExit(f"Xotira: {error}") from error
 
 
+def report_macos_startup_error(error: BaseException) -> None:
+    """Keep native startup failures visible instead of silently closing Finder apps."""
+    if sys.platform != "darwin" or not getattr(sys, "frozen", False) or any(arg in sys.argv for arg in ("--no-browser", "--browser", "--restore-zip")):
+        return
+    try:
+        import traceback
+        folder = default_vault().parent
+        folder.mkdir(parents=True, mode=0o700, exist_ok=True)
+        path = folder / "launch-error.log"
+        descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | getattr(os, "O_NOFOLLOW", 0), 0o600)
+        with os.fdopen(descriptor, "w", encoding="utf-8") as log:
+            log.write("Memory Map startup error\n")
+            log.writelines(traceback.format_exception(error))
+    except OSError:
+        pass
+    try:
+        from AppKit import NSAlert, NSApplication
+        NSApplication.sharedApplication()
+        alert = NSAlert.alloc().init()
+        alert.setMessageText_("Memory Map could not start")
+        alert.setInformativeText_(str(error)[:350] + "\n\nDetails: ~/Library/Application Support/Xotira/launch-error.log")
+        alert.addButtonWithTitle_("OK")
+        alert.runModal()
+    except Exception:
+        # If AppKit itself cannot initialize, the local diagnostic remains available.
+        return
+
+
 if __name__ == "__main__":
     if sys.argv[1:] == ["--snippet-worker"]:
         snippet_worker()
     else:
-        main()
+        try:
+            main()
+        except SystemExit as error:
+            if isinstance(error.code, str):
+                report_macos_startup_error(error)
+            raise
+        except Exception as error:
+            report_macos_startup_error(error)
+            raise

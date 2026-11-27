@@ -48,7 +48,7 @@ The Android job packages the same local Python core, verifies Java crypto
 compatibility and starts the bundled service in an emulator. The Android release
 uses a stable private signing key stored as GitHub Actions secrets. The running
 workspace opens in an Android-native window, while external OAuth uses the system browser.
-macOS packaging seals the completed bundle and verifies the resource signature after mounting the disk image. For normal Gatekeeper approval, configure Apple Developer ID and notarization credentials; an ad-hoc resource seal tests integrity but does not establish publisher trust.
+macOS uses a standard windowed one-directory app bundle, including its native frameworks. Packaging seals the completed bundle, verifies the resource signature after mounting the disk image, and opens a copied app through LaunchServices with an isolated test vault. For normal Gatekeeper approval, configure Apple Developer ID and notarization credentials; an ad-hoc resource seal tests integrity but does not establish publisher trust.
 
 Each desktop build runs existing tests and a standalone smoke test. The release
 job groups verified distributives with SHA256SUMS.txt and creates a draft for

@@ -1,5 +1,6 @@
 import {Marked} from "./vendor/marked.mjs";
 import {renderCode, renderFlowchart, renderMath} from "./note-renderers.js";
+import {readStoredInlineStyle} from "./inline-format.js";
 
 const WIKI = /^(!?)\[\[([^\[\]\n|#]*?)(?:#([^\[\]\n|]*?))?(?:\\?\|([^\[\]\n]*))?\]\]/;
 const FRONTMATTER = /^(\uFEFF?---[ \t]*\r?\n)([\s\S]*?)^((?:---|\.\.\.)[ \t]*(?:\r?\n|$))/m;
@@ -34,6 +35,16 @@ const parser = new Marked({gfm: true, extensions: [{
     const match = source.match(/^==([^\n=][^=\n]*?)==/);
     if (match) return {type: "highlight", raw: match[0], text: match[1]};
     return undefined;
+  },
+  renderer(token) { return token.raw; },
+}, {
+  name: "mmInlineStyle",
+  level: "inline",
+  start(source) { return source.search(/<(?:span data-mm-size=|mark data-mm-hl=)/); },
+  tokenizer(source) {
+    const style = readStoredInlineStyle(source);
+    if (!style) return undefined;
+    return {type:"mmInlineStyle",raw:style.raw,style:style.type,value:style.value,tokens:this.lexer.inlineTokens(style.inner)};
   },
   renderer(token) { return token.raw; },
 }, {
@@ -209,6 +220,12 @@ export function renderMarkdown(source, links) {
       case "em": return append(make("em"), token.tokens);
       case "del": return append(make("del"), token.tokens);
       case "highlight": return make("mark", token.text);
+      case "mmInlineStyle": {
+        const node = make(token.style === "size" ? "span" : "mark");
+        if (token.style === "size") node.dataset.mmSize = token.value;
+        else node.dataset.hl = token.value;
+        return append(node, token.tokens);
+      }
       case "inlineTag": {
         const chip = make("span", "#" + token.tag);
         chip.className = "md-tag";

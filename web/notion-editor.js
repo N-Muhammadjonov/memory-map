@@ -1,5 +1,6 @@
 import {saveBlob} from "./native-downloads.js";
 import {t} from "./i18n.js";
+import {applyInlineStyle, exitHighlightAtCaret, restoreEscapedInlineStyles, storedSize, storedHighlight, FONT_SIZE_POINTS} from "./inline-format.js";
 /**
  * Xotira v8 Unified Rich Document Editor (True Notion + Obsidian Experience)
  * - Single unified contentEditable surface:
@@ -258,6 +259,8 @@ export function inlineMdToHtml(md) {
   // 1. Inline code
   s = s.replace(/`([^`\n]+)`/g, (_, code) => stash(`<code>${code}</code>`));
 
+  s = restoreEscapedInlineStyles(s, stash);
+
   // 2. Wikilinks [[Target|Label]] or [[Target]]
   s = s.replace(/\[\[([^\]|]+?)(?:\|([^\]]+))?\]\]/g, (_, target, label) => {
     const display = label || target;
@@ -289,8 +292,8 @@ export function inlineMdToHtml(md) {
   s = s.replace(/==([^=\n]+)==/g, "<mark>$1</mark>");
 
   // Restore stashed tokens
-  s = s.replace(/\u0000S(\d+)\u0000/g, (_, i) => slots[Number(i)]);
-  return s;
+  const restore = (value, limit) => value.replace(/\u0000S(\d+)\u0000/g, (_, i) => Number(i) < limit ? restore(slots[Number(i)] || "", Number(i)) : "");
+  return restore(s, slots.length);
 }
 
 const MIND_MAP_LINK = /^\[Mind map\]\(attachment:([0-9a-f]{32}) "Mind map"\)\s*$/;
@@ -520,7 +523,8 @@ function inlineDomToMd(node) {
   if (tag === "strong" || tag === "b") return inner ? `**${inner}**` : "";
   if (tag === "em" || tag === "i") return inner ? `*${inner}*` : "";
   if (tag === "s" || tag === "del" || tag === "strike") return inner ? `~~${inner}~~` : "";
-  if (tag === "mark") return inner ? `==${inner}==` : "";
+  if (tag === "mark") return storedHighlight(node.dataset.hl, inner);
+  if (tag === "span" && node.dataset.mmSize) return storedSize(node.dataset.mmSize, inner);
   if (tag === "code") return inner ? `\`${inner}\`` : "";
   if (tag === "a") {
     const href = node.dataset.href || node.getAttribute("href") || "";
@@ -649,6 +653,8 @@ export class NotionEditor {
     this.container = container;
     this.popover = slashPopover;
     this.bubble = bubbleBar;
+    this.bubbleRange = null;
+    this.lastHighlightSpace = null;
     this.getNotes = options.getNotes;
     this.onOpenLink = options.onOpenLink;
     this.onChange = options.onChange;
@@ -877,6 +883,7 @@ export class NotionEditor {
     this.bubbleTimer = 0;
 
     this.doc.addEventListener("mousedown", e => {
+      this.lastHighlightSpace = null;
       if (e.target.closest(".n-mind-slot")) return;
       this.isMouseSelecting = true;
       this.bubble.hidden = true;
@@ -1081,7 +1088,7 @@ export class NotionEditor {
 
   setupBubbleBar() {
     this.bubble.addEventListener("mousedown", e => {
-      if (e.target.closest("select")) return;
+      if (e.target.closest("select")) { this.rememberBubbleSelection(); return; }
       e.preventDefault();
     });
     this.bubble.addEventListener("click", e => {
@@ -1108,14 +1115,40 @@ export class NotionEditor {
       this.emit();
       this.updateBubble();
     });
+    const fontPick = this.bubble.querySelector(".bubble-font-size");
+    fontPick?.addEventListener("change", () => {
+      if (this.readOnly || !fontPick.value) return;
+      const value = fontPick.value === "default" ? null : fontPick.value;
+      if (value === null || FONT_SIZE_POINTS.includes(Number(value))) {
+        this.restoreBubbleSelection();
+        if (applyInlineStyle(this.doc, window.getSelection(), "size", value)) this.emit();
+      }
+      fontPick.value = "";
+      this.updateBubble();
+    });
     const blockPick = this.bubble.querySelector(".bubble-block-pick");
     blockPick?.addEventListener("change", () => {
       if (this.readOnly || !blockPick.value) return;
+      this.restoreBubbleSelection();
       this.toggleBlockTag(blockPick.value);
       blockPick.value = "";
       this.emit();
       this.bubble.hidden = true;
     });
+  }
+
+  rememberBubbleSelection() {
+    const sel = window.getSelection();
+    if (sel?.rangeCount && !sel.isCollapsed && this.doc.contains(sel.getRangeAt(0).startContainer) && this.doc.contains(sel.getRangeAt(0).endContainer)) {
+      this.bubbleRange = sel.getRangeAt(0).cloneRange();
+    }
+  }
+
+  restoreBubbleSelection() {
+    const range = this.bubbleRange;
+    if (!range || !this.doc.contains(range.startContainer) || !this.doc.contains(range.endContainer)) return;
+    this.doc.focus({preventScroll: true});
+    const sel = window.getSelection();sel.removeAllRanges();sel.addRange(range);
   }
 
   // </> in the bubble bar: turn the selected text into a real code block (like the slash menu does),
@@ -1211,6 +1244,7 @@ export class NotionEditor {
 
   toggleInlineWrap(tagName, dataset = {}) {
     const sel = window.getSelection();
+    if (tagName === "mark") { applyInlineStyle(this.doc, sel, "highlight", dataset.hl || "yellow"); return; }
     if (!sel || !sel.rangeCount || sel.isCollapsed) return;
     const range = sel.getRangeAt(0);
     const parentTag = range.commonAncestorContainer.nodeType === Node.TEXT_NODE
@@ -1260,6 +1294,7 @@ export class NotionEditor {
   }
 
   updateBubble() {
+    if (this.bubble.contains(document.activeElement) && document.activeElement?.tagName === "SELECT") return;
     if (this.readOnly || this.isMouseSelecting) { this.bubble.hidden = true; return; }
     const sel = window.getSelection();
     if (!sel || sel.isCollapsed || !sel.rangeCount || !this.doc.contains(sel.anchorNode)) {
@@ -1267,12 +1302,13 @@ export class NotionEditor {
       return;
     }
     if (!sel.toString().trim()) { this.bubble.hidden = true; return; }
+    this.rememberBubbleSelection();
     const rect = sel.getRangeAt(0).getBoundingClientRect();
     if (!rect.width) { this.bubble.hidden = true; return; }
     this.bubble.hidden = false;
     const barW = this.bubble.offsetWidth || 360;
     const left = Math.max(12, Math.min(window.innerWidth - barW - 12, rect.left + rect.width / 2 - barW / 2));
-    const top = Math.max(50, rect.top - 46);
+    const top = Math.max(12, rect.top - (this.bubble.offsetHeight || 38) - 8);
     this.bubble.style.left = `${left}px`;
     this.bubble.style.top = `${top}px`;
   }
@@ -1351,6 +1387,8 @@ export class NotionEditor {
     this.composing = false;
     this.readOnly = readOnly;
     this.doc.contentEditable = String(!readOnly);
+    this.bubbleRange = null;
+    this.lastHighlightSpace = null;
     this.doc.innerHTML = markdownToDocHtml(markdown);
     this.hydrateImages();
     this.hydrateMermaid();
@@ -1626,6 +1664,7 @@ export class NotionEditor {
   }
 
   handleKeyDown(e) {
+    if (e.key !== " " || e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) this.lastHighlightSpace = null;
     if (e.isComposing || e.keyCode === 229 || e.target.closest(".n-mind-slot")) return;
     if (this.menuState) {
       if (e.key === "ArrowDown") {
@@ -1658,6 +1697,20 @@ export class NotionEditor {
     const anchorEl = anchorNode?.nodeType === Node.TEXT_NODE ? anchorNode.parentElement : anchorNode;
 
     if (!this.readOnly && this.handleImageBoundaryKey(e, sel)) return;
+
+    if (e.key === " " && !e.repeat && !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey && sel?.isCollapsed && !this.readOnly) {
+      const mark = anchorEl?.closest?.("mark");
+      if (mark && this.doc.contains(mark)) {
+        const preceding = sel.getRangeAt(0).cloneRange();
+        preceding.setStart(mark, 0);
+        if (this.lastHighlightSpace === mark && /[ \u00a0]$/.test(preceding.toString())) {
+          e.preventDefault();this.lastHighlightSpace = null;
+          if (exitHighlightAtCaret(this.doc, sel)) this.emit();
+          return;
+        }
+        this.lastHighlightSpace = mark;
+      } else this.lastHighlightSpace = null;
+    }
 
     // Inside code block: Enter inserts newline (Shift/Cmd+Enter exits), Tab inserts 2 spaces
     const codeBox = anchorEl?.closest?.(".n-code-box");

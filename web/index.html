@@ -7,8 +7,8 @@
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="icon" href="/assets/memory-map.svg" type="image/svg+xml">
   <title>Memory map</title>
-  <link rel="stylesheet" href="/styles.css?v=44">
-  <script type="module" src="/app.js?v=44"></script>
+  <link rel="stylesheet" href="/styles.css?v=45">
+  <script type="module" src="/app.js?v=45"></script>
 </head>
 <body>
   <main class="gate" id="gate">
@@ -415,6 +415,27 @@
       <button type="button" data-cmd="link" title="Add external link">URL</button>
       <button type="button" data-cmd="wiki" title="Link to a note">[[</button>
       <span class="bubble-sep"></span>
+      <select class="bubble-font-size" title="Text size (selected text only)" aria-label="Text size">
+        <option value="">Size ▾</option>
+        <option value="default">Default</option>
+        <option value="8">8 pt</option>
+        <option value="9">9 pt</option>
+        <option value="10">10 pt</option>
+        <option value="11">11 pt</option>
+        <option value="12">12 pt</option>
+        <option value="14">14 pt</option>
+        <option value="16">16 pt</option>
+        <option value="18">18 pt</option>
+        <option value="20">20 pt</option>
+        <option value="22">22 pt</option>
+        <option value="24">24 pt</option>
+        <option value="26">26 pt</option>
+        <option value="28">28 pt</option>
+        <option value="32">32 pt</option>
+        <option value="36">36 pt</option>
+        <option value="48">48 pt</option>
+        <option value="72">72 pt</option>
+      </select>
       <select class="bubble-block-pick" title="Change block type" aria-label="Block type">
         <option value="">Block ▾</option>
         <option value="p">Plain text</option>

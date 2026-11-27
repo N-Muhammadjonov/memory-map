@@ -415,7 +415,7 @@ p, h1, h2, h3 { margin: 0; }
 
 /* Floating Notion Bubble Toolbar */
 .bubble-bar {
-  position: fixed; z-index: 50; display: flex; align-items: center; gap: 2px;
+  position: fixed; z-index: 50; display: flex; flex-wrap: wrap; align-items: center; gap: 2px; max-width: calc(100vw - 24px);
   padding: 4px 6px; border-radius: 8px; background: var(--surface); border: 1px solid var(--border);
   box-shadow: 0 10px 30px rgba(0,0,0,.6);
 }
@@ -622,23 +622,23 @@ dialog::backdrop { background: rgba(0,0,0,.6); }
 :root[data-theme="light"] .bubble-bar button:hover { background: #f2f0ea; }
 
 /* 4-Color Highlight Marks & Precision Bubble Toolbar */
-.notion-doc mark[data-hl="green"] { background: rgba(52, 211, 153, 0.24); color: #a7f3d0; }
-.notion-doc mark[data-hl="blue"] { background: rgba(96, 165, 250, 0.26); color: #bfdbfe; }
-.notion-doc mark[data-hl="pink"] { background: rgba(244, 114, 182, 0.26); color: #fbcfe8; }
+mark[data-hl="green"] { background: rgba(52, 211, 153, 0.24); color: #a7f3d0; }
+mark[data-hl="blue"] { background: rgba(96, 165, 250, 0.26); color: #bfdbfe; }
+mark[data-hl="pink"] { background: rgba(244, 114, 182, 0.26); color: #fbcfe8; }
 :root[data-theme="light"] :is(.notion-doc, .bubble-bar) mark { background: #fef08a; color: #1c1917; }
-:root[data-theme="light"] .notion-doc mark[data-hl="green"] { background: #bbf7d0; color: #14532d; }
-:root[data-theme="light"] .notion-doc mark[data-hl="blue"] { background: #bfdbfe; color: #1e3a8a; }
-:root[data-theme="light"] .notion-doc mark[data-hl="pink"] { background: #fbcfe8; color: #831843; }
+:root[data-theme="light"] mark[data-hl="green"] { background: #bbf7d0; color: #14532d; }
+:root[data-theme="light"] mark[data-hl="blue"] { background: #bfdbfe; color: #1e3a8a; }
+:root[data-theme="light"] mark[data-hl="pink"] { background: #fbcfe8; color: #831843; }
 .hl-dot { width: 18px; height: 18px; padding: 0 !important; border-radius: 50% !important; display: inline-grid; place-items: center; }
 .hl-dot::after { content: ""; width: 10px; height: 10px; border-radius: 50%; display: block; }
 .hl-yellow::after { background: #facc15; }
 .hl-green::after { background: #34d399; }
 .hl-blue::after { background: #60a5fa; }
 .hl-pink::after { background: #f472b6; }
-.bubble-block-pick {
+.bubble-block-pick, .bubble-font-size {
   border: 0; background: transparent; color: var(--muted); font-size: .76rem; padding: 2px 4px; border-radius: 4px;
 }
-.bubble-block-pick:hover { background: var(--hover); color: var(--text); }
+.bubble-block-pick:hover, .bubble-font-size:hover { background: var(--hover); color: var(--text); }
 
 /* Split View: 3D Map + Note Side-by-Side */
 .stage.is-split {
@@ -1526,3 +1526,22 @@ input.prop-date:hover, input.prop-date:focus { border-color: var(--border); back
 .owner-stats-row { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding: 7px 0; border-bottom: 1px solid var(--border); overflow-wrap: anywhere; }
 .owner-stats-row strong { flex-shrink: 0; color: var(--text); }
 #owner-stats-content > .agent-sub { margin-top: 14px; }
+
+/* Inline point sizes apply only to selected text, never to the containing block. */
+span[data-mm-size="8"] { font-size: 8pt; }
+span[data-mm-size="9"] { font-size: 9pt; }
+span[data-mm-size="10"] { font-size: 10pt; }
+span[data-mm-size="11"] { font-size: 11pt; }
+span[data-mm-size="12"] { font-size: 12pt; }
+span[data-mm-size="14"] { font-size: 14pt; }
+span[data-mm-size="16"] { font-size: 16pt; }
+span[data-mm-size="18"] { font-size: 18pt; }
+span[data-mm-size="20"] { font-size: 20pt; }
+span[data-mm-size="22"] { font-size: 22pt; }
+span[data-mm-size="24"] { font-size: 24pt; }
+span[data-mm-size="26"] { font-size: 26pt; }
+span[data-mm-size="28"] { font-size: 28pt; }
+span[data-mm-size="32"] { font-size: 32pt; }
+span[data-mm-size="36"] { font-size: 36pt; }
+span[data-mm-size="48"] { font-size: 48pt; }
+span[data-mm-size="72"] { font-size: 72pt; }

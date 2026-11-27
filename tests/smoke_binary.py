@@ -34,7 +34,7 @@ def main() -> None:
                 with urlopen(request, timeout=20) as response:
                     return response.status, response.read()
 
-            for asset in ["/", "/app.js", "/home.js", "/i18n.js", "/styles.css", "/pdf/pdf.mjs", "/vendor/katex.mjs", "/assets/memory-map.svg", "/assets/memory-map-192.png", "/assets/memory-map-512.png"]:
+            for asset in ["/", "/app.js", "/home.js", "/i18n.js", "/inline-format.js", "/styles.css", "/pdf/pdf.mjs", "/vendor/katex.mjs", "/assets/memory-map.svg", "/assets/memory-map-192.png", "/assets/memory-map-512.png"]:
                 assert request(asset)[0] == 200, asset
             assert json.loads(request("/api/status")[1])["unlocked"] is False
             assert json.loads(request("/api/create", {"password": PASSWORD})[1])["ok"]

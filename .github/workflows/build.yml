@@ -85,6 +85,7 @@ jobs:
           python -m playwright install --with-deps chromium
           python tests/browser/owner_v40.py
           python tests/browser/site_v27.py
+          python tests/browser/inline_format_v45.py
       - name: Bake public service configuration
         env:
           XOTIRA_STATS_URL: ${{ vars.XOTIRA_STATS_URL }}

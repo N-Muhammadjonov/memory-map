@@ -21,34 +21,25 @@ if "windows" in name:
     shutil.copy2(binary, out / (name + ".exe"))
 elif "macos" in name:
     app = Path("dist") / "Memory map.app"
-    launch = app / "Contents" / "MacOS"
-    launch.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(binary, launch / "MemoryMap")
+    # Use the standard windowed PyInstaller BUNDLE, not a manually wrapped
+    # single-file executable. Its Frameworks and Resources are sealed together.
+    with (app / "Contents" / "Info.plist").open("rb") as stream:
+        info = plistlib.load(stream)
+    executable = info["CFBundleExecutable"]
+    launch = app / "Contents" / "MacOS" / executable
+    assert launch.is_file() and os.access(launch, os.X_OK), "Missing macOS bundle executable"
+    assert (app / "Contents" / "Frameworks").is_dir(), "Missing bundled native frameworks"
+    assert info["CFBundleIdentifier"] == "com.memorymap.app"
+    assert info["CFBundleShortVersionString"] == VERSION.removeprefix("v") + ".0"
+    icon = info["CFBundleIconFile"]
+    if not icon.endswith(".icns"):
+        icon += ".icns"
     resources = app / "Contents" / "Resources"
-    resources.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(Path(__file__).resolve().parents[1] / "assets" / "memory-map.icns", resources / "MemoryMap.icns")
-    with (app / "Contents" / "Info.plist").open("wb") as stream:
-        plistlib.dump({
-            "CFBundleExecutable": "MemoryMap",
-            "CFBundleIconFile": "MemoryMap.icns",
-            "CFBundleDisplayName": "Memory map",
-            "CFBundleName": "Memory map",
-            "CFBundleIdentifier": "com.memorymap.app",
-            "CFBundlePackageType": "APPL",
-            "CFBundleInfoDictionaryVersion": "6.0",
-            "CFBundleShortVersionString": VERSION.removeprefix("v") + ".0",
-            "CFBundleVersion": VERSION.removeprefix("v"),
-            "NSHighResolutionCapable": True,
-        }, stream)
+    assert (resources / icon).is_file(), "Missing app icon"
     package = (out / (name + ".dmg")).resolve()
     sign = os.environ.get("APPLE_SIGN_IDENTITY")
     publisher_configured = bool(os.environ.get("APPLE_CERT_BASE64") and sign)
-    if publisher_configured:
-        subprocess.run(["codesign", "--force", "--options", "runtime", "--timestamp", "--sign", sign, str(app)], check=True)
-    else:
-        # PyInstaller signs its stand-alone executable; after wrapping it in a
-        # bundle the signature must bind the final Info.plist and resources.
-        subprocess.run(["codesign", "--force", "--sign", "-", "--timestamp=none", str(app)], check=True)
+    # PyInstaller signs the complete app bundle with its nested code before distribution.
     subprocess.run(["codesign", "--verify", "--deep", "--strict", "--verbose=2", str(app)], check=True)
     # Disk image contains the exact application bundle and an Applications shortcut.
     with tempfile.TemporaryDirectory(prefix="memory-map-dmg-") as tmp:
@@ -73,20 +64,24 @@ elif "macos" in name:
         subprocess.run(["hdiutil", "attach", "-readonly", "-nobrowse", "-mountpoint", str(mount), str(package)], check=True)
         try:
             mounted_app = mount / app.name
-            mounted_binary = mounted_app / "Contents" / "MacOS" / "MemoryMap"
+            mounted_binary = mounted_app / "Contents" / "MacOS" / executable
             assert mounted_binary.is_file() and os.access(mounted_binary, os.X_OK), "Missing executable in DMG"
             assert (mount / "Applications").is_symlink() and os.readlink(mount / "Applications") == "/Applications", "Missing Applications shortcut"
             assert (mounted_app / "Contents" / "Info.plist").read_bytes() == (app / "Contents" / "Info.plist").read_bytes(), "Bundle metadata changed in DMG"
-            with mounted_binary.open("rb") as packed, (launch / "MemoryMap").open("rb") as original:
+            with mounted_binary.open("rb") as packed, launch.open("rb") as original:
                 assert hashlib.file_digest(packed, "sha256").digest() == hashlib.file_digest(original, "sha256").digest(), "Executable changed in DMG"
-            assert (mounted_app / "Contents" / "Resources" / "MemoryMap.icns").read_bytes() == (resources / "MemoryMap.icns").read_bytes(), "App icon missing or changed in DMG"
+            assert (mounted_app / "Contents" / "Resources" / icon).read_bytes() == (resources / icon).read_bytes(), "App icon missing or changed in DMG"
             subprocess.run(["codesign", "--verify", "--deep", "--strict", "--verbose=2", str(mounted_app)], check=True)
             if publisher_configured:
                 subprocess.run(["spctl", "--assess", "--type", "execute", "--verbose=2", str(mounted_app)], check=True)
             else:
                 print("Bundle seal validated; Developer ID publisher/notarization verification is not configured.")
-            # Test the executable from the final sealed bundle, not its original copy.
-            subprocess.run([sys.executable, str(Path(__file__).resolve().parents[1] / "tests" / "smoke_binary.py"), str(mounted_binary)], check=True, timeout=120)
+            # Exercise the actual Finder/LaunchServices launch from a copied DMG bundle.
+            installed = Path(tmp) / "installed" / app.name
+            installed.parent.mkdir()
+            subprocess.run(["ditto", str(mounted_app), str(installed)], check=True)
+            subprocess.run(["codesign", "--verify", "--deep", "--strict", "--verbose=2", str(installed)], check=True)
+            subprocess.run([sys.executable, str(Path(__file__).resolve().parents[1] / "tests" / "smoke_macos_bundle.py"), str(installed)], check=True, timeout=150)
             print(f"PASS: {package.name} mounts, bundle and executable match, Applications shortcut present")
         finally:
             subprocess.run(["hdiutil", "detach", str(mount)], check=True)
