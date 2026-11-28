@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import {readFileSync} from "node:fs";
 import {DatabaseSync} from "node:sqlite";
 import {crc32} from "node:zlib";
-import {handle, stats, validatePing, FEATURES, FEEDBACK_PER_DAY, ownerAuthorized} from "./worker.js";
+import {handle, stats, validatePing, FEATURES, FEEDBACK_PER_DAY, ownerAccessStatus} from "./worker.js";
 
 function makeEnv() {
   const db = new DatabaseSync(":memory:");
@@ -170,16 +170,20 @@ test("owner statistics require a verified owner at the identity service", async 
   const answer = (owner, status = 200) => async (endpoint, options) => {
     assert.equal(endpoint, env.AUTH_URL + "/rest/v1/rpc/owner_account_stats");
     assert.equal(options.headers.Authorization, req.headers.get("Authorization"));
-    assert.equal(options.redirect, "error");
+    assert.equal(options.redirect, "manual");
     return new Response(JSON.stringify({owner}), {status});
   };
-  assert.equal(await ownerAuthorized(req, env, answer(true)), true);
-  assert.equal(await ownerAuthorized(req, env, answer(false)), false);
-  assert.equal(await ownerAuthorized(req, env, answer(true, 401)), false);
-  assert.equal(await ownerAuthorized(new Request(url), env, answer(true)), false);
+  assert.equal(await ownerAccessStatus(req, env, answer(true)), 200);
+  assert.equal(await ownerAccessStatus(req, env, answer(false)), 403);
+  assert.equal(await ownerAccessStatus(req, env, answer(true, 401)), 403);
+  assert.equal(await ownerAccessStatus(new Request(url), env, answer(true)), 403);
+  assert.equal(await ownerAccessStatus(req, env, answer(true, 307)), 503);
+  assert.equal(await ownerAccessStatus(req, env, answer(true, 500)), 503);
+  assert.equal(await ownerAccessStatus(req, env, async () => { throw new TypeError("unreachable"); }), 502);
   assert.equal((await handle(new Request(url), env)).status, 403);
   env.AUTH_URL = "https://untrusted.example";
-  assert.equal(await ownerAuthorized(req, env, () => { throw Error("should not call"); }), false);
+  const unreachable = () => assert.fail("must not send credentials to an untrusted origin");
+  assert.equal(await ownerAccessStatus(req, env, unreachable), 503);
 });
 
 test("the production owner lookup preserves the Workers fetch receiver", async () => {

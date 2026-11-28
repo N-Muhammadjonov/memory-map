@@ -186,6 +186,11 @@ const studyMode = new StudyMode($("study-dialog"));
 function status(message, error = false) {
   $("status").textContent = message;
   $("status").classList.toggle("error", error);
+  const exportStatus = $("settings-export-status");
+  if ($("account-dialog").open && !exportStatus.closest("[data-settings-pane]").hidden) {
+    exportStatus.textContent = message;
+    exportStatus.classList.toggle("error", error);
+  }
 }
 
 function saved(message, error = false) {
@@ -202,6 +207,7 @@ function gateError(message) {
 function showGate({exists, authenticated = state.accountAuthenticated, message = ""}) {
   const hadAccount = state.accountAuthenticated;
   state.accountAuthenticated = authenticated;
+  if (!authenticated) renderProfileAvatar("");
   if (authenticated || hadAccount) {
     $("gate-google").removeAttribute("href");
     $("gate-google").setAttribute("aria-disabled", "true");
@@ -253,10 +259,8 @@ function showGate({exists, authenticated = state.accountAuthenticated, message =
   for (const dlg of ["draw-dialog", "create-dialog", "cmd-dialog", "template-dialog", "path-dialog", "history-dialog", "relations-dialog", "search-dialog", "agent-dialog", "study-dialog", "timer-dialog", "mind-create-dialog", "reminder-dialog", "share-dialog", "transfer-dialog", "a11y-dialog", "onboarding-dialog", "bibtex-dialog", "clipper-dialog", "feedback-dialog", "ai-panel", "recovery-dialog", "note-lock-dialog", "mirror-dialog"]) {
     if ($(dlg)?.open) $(dlg).close();
   }
-  for (const dlg of ["account-dialog", "updates-dialog", "owner-stats-dialog"]) {
-    if ($(dlg)?.open) $(dlg).close();
-  }
-  $("owner-stats-content")?.replaceChildren();
+  if ($("account-dialog").open) $("account-dialog").close();
+  clearOwnerStats();
   $("account-owner-stats").hidden = true;
   document.querySelector(".tour-card[open]")?.close();
   state.fileSequence += 1;
@@ -1099,7 +1103,6 @@ function setView(view) {
   $("viewer-panel").hidden = view !== "file";
   $("tab-map").setAttribute("aria-pressed", String(view === "map" || splitActive));
   $("nav-map").setAttribute("aria-pressed", String(view === "map" || splitActive));
-  $("tab-mind").setAttribute("aria-pressed", String(view === "mind"));
   $("nav-mind").setAttribute("aria-pressed", String(view === "mind"));
   $("tab-db").setAttribute("aria-pressed", String(view === "db"));
   syncPlanningNav();
@@ -2076,6 +2079,7 @@ async function download(path, fallback, saveFirst = true) {
 
 async function updateStatus() {
   const metadata = await request("/status");
+  renderProfileAvatar(metadata.accountEmail || "");
   if (metadata.authenticated !== state.accountAuthenticated) {
     showGate(metadata);
     if (!metadata.authenticated) renderGoogleLogin(metadata.googleLogin);
@@ -2801,7 +2805,6 @@ $("graph-orphans").addEventListener("click", () => {
 $("nav-map").addEventListener("click", () => { setLibrary("notes"); setView("map"); });
 $("tab-map").addEventListener("click", () => setView("map"));
 $("nav-mind").addEventListener("click", () => void run(openMindMaps));
-$("tab-mind").addEventListener("click", () => void run(openMindMaps));
 $("nav-db").addEventListener("click", () => openPlanning("table"));
 
 
@@ -3740,7 +3743,6 @@ $("voice-note")?.addEventListener("click", async () => {
   }
 });
 
-void initialize();
 
 for (const [id, feature] of [["nav-calendar", "calendar"], ["nav-roadmaps", "roadmaps"], ["study-vault", "flashcards"],
     ["open-templates", "templates"], ["daily-note", "daily"]]) {
@@ -3755,12 +3757,10 @@ function applySpellcheck(on) {
     field.spellcheck = on;
     if (on) field.lang = "en"; else field.removeAttribute("lang");
   }
-  const button = $("spell-toggle");
-  button.setAttribute("aria-pressed", String(on));
-  button.textContent = on ? "Spell ✓" : "Spell";
+  $("spell-toggle").setAttribute("aria-checked", String(on));
   try { localStorage.setItem(SPELL_KEY, on ? "1" : "0"); } catch { /* private mode */ }
 }
-$("spell-toggle").addEventListener("click", () => applySpellcheck($("spell-toggle").getAttribute("aria-pressed") !== "true"));
+$("spell-toggle").addEventListener("click", () => applySpellcheck($("spell-toggle").getAttribute("aria-checked") !== "true"));
 applySpellcheck(spellSaved);
 
 // v31: One-Time Recovery Key & Per-Note Password Lock
@@ -3880,20 +3880,71 @@ $("note-lock-form")?.addEventListener("submit", event => {
   })();
 });
 
-// Online identity is separate from the encrypted vault.
-function showAccount(data) {
-  $("account-status").textContent = data.user?.email ? "Signed in as " + data.user.email : "Sign in with Google.";
-  $("account-signout").hidden = !data.authenticated;
-  $("account-owner-stats").hidden = data.owner !== true;
+const profileSettings = $("account-dialog");
+const settingsTabs = [...profileSettings.querySelectorAll("[data-settings-tab]")];
+const settingsPanes = [...profileSettings.querySelectorAll("[data-settings-pane]")];
+let profileEmail = "";
+
+function renderProfileAvatar(email) {
+  if (email === profileEmail) return;
+  profileEmail = email;
+  const words = email.split("@")[0].match(/\p{L}+/gu) || [];
+  const initials = (words.length > 1
+    ? words.slice(0, 2).map(word => [...word][0]).join("")
+    : [...(words[0] || "")].slice(0, 2).join("")).toUpperCase();
+  $("account-avatar").textContent = $("settings-avatar").textContent = initials || "?";
 }
-async function refreshAccount() { showAccount(await request("/account")); }
-$("open-account").addEventListener("click", () => void run(async () => {
+
+function showSettingsPane(pane) {
+  for (const tab of settingsTabs) {
+    if (tab.dataset.settingsTab === pane) tab.setAttribute("aria-current", "true");
+    else tab.removeAttribute("aria-current");
+  }
+  for (const section of settingsPanes) section.hidden = section.dataset.settingsPane !== pane;
+  if (pane === "data") {
+    $("settings-export-status").textContent = "";
+    const noteAvailable = Boolean(state.note && !state.note.locked);
+    for (const id of ["export-note-docx", "export-note-epub", "settings-export-pdf"]) $(id).disabled = !noteAvailable;
+  }
+  if (pane !== "usage") clearOwnerStats();
+}
+
+async function refreshAccount() {
+  const session = state.session;
+  const data = await request("/account");
+  if (session !== state.session || !profileSettings.open) return;
+  const email = data.authenticated ? data.user?.email || "" : "";
+  renderProfileAvatar(email);
+  $("account-status").textContent = email ? "Signed in as " + email : "Sign in with Google.";
+  $("account-signout").hidden = !data.authenticated;
+  $("account-owner-stats").hidden = !data.authenticated || data.owner !== true;
+}
+
+$("open-account").addEventListener("click", () => {
   $("file-menu").open = false;
-  await refreshAccount();
-  $("account-dialog").showModal();
-}));
-$("account-close").addEventListener("click", () => $("account-dialog").close());
+  showSettingsPane("account");
+  $("account-status").textContent = profileEmail ? "Signed in as " + profileEmail : "Loading account…";
+  $("account-signout").hidden = !state.accountAuthenticated;
+  $("account-owner-stats").hidden = true;
+  profileSettings.showModal();
+  void run(refreshAccount);
+});
+$("account-close").addEventListener("click", () => profileSettings.close());
 $("account-refresh").addEventListener("click", () => void run(refreshAccount));
+$("settings-export-pdf").addEventListener("click", () => {
+  profileSettings.close();
+  if (state.view !== "note") setView("note");
+  window.print();
+});
+for (const tab of settingsTabs) {
+  tab.addEventListener("click", () => {
+    const pane = tab.dataset.settingsTab;
+    showSettingsPane(pane);
+    if (pane === "usage") void refreshOwnerStats();
+    if (pane === "updates") void run(refreshUpdates);
+  });
+}
+
 function renderGoogleLogin(login) {
   const button = $("gate-google");
   const url = login?.url || "";
@@ -3980,7 +4031,7 @@ function renderOwnerStats(data) {
   const s = data.usage;
   if (!s) {
     ownerStatsContent.append(statsElement("p", "agent-sub",
-      "Usage statistics are temporarily unavailable. Account counts above are live."));
+      data.usageError || "Usage statistics are temporarily unavailable. Account counts above are live."));
     return;
   }
   statsCards(ownerStatsContent, "Opt-in usage", [
@@ -4000,7 +4051,7 @@ function renderOwnerStats(data) {
 }
 async function refreshOwnerStats() {
   const sequence = ++ownerStatsSequence;
-  const dialog = $("owner-stats-dialog");
+  const panel = $("owner-stats-panel");
   const status = $("owner-stats-status");
   const refresh = $("owner-stats-refresh");
   refresh.disabled = true;
@@ -4008,29 +4059,25 @@ async function refreshOwnerStats() {
   ownerStatsContent.replaceChildren();
   try {
     const data = await request("/account/owner-stats");
-    if (sequence !== ownerStatsSequence || !dialog.open) return;
+    if (sequence !== ownerStatsSequence || !profileSettings.open || panel.hidden) return;
     renderOwnerStats(data);
-    status.textContent = "Updated just now";
+    status.textContent = data.usage ? "Updated just now" : "Account counts updated";
   } catch (error) {
-    if (sequence !== ownerStatsSequence || !dialog.open) return;
+    if (sequence !== ownerStatsSequence || !profileSettings.open || panel.hidden) return;
     status.textContent = error.message;
   } finally {
     if (sequence === ownerStatsSequence) refresh.disabled = false;
   }
 }
-$("account-owner-stats").addEventListener("click", () => {
-  $("account-dialog").close();
-  $("owner-stats-dialog").showModal();
-  void refreshOwnerStats();
-});
 $("owner-stats-refresh").addEventListener("click", () => void refreshOwnerStats());
-$("owner-stats-close").addEventListener("click", () => $("owner-stats-dialog").close());
-$("owner-stats-dialog").addEventListener("close", () => {
+
+function clearOwnerStats() {
   ownerStatsSequence++;
   ownerStatsContent.replaceChildren();
   $("owner-stats-status").textContent = "";
   $("owner-stats-refresh").disabled = false;
-});
+}
+profileSettings.addEventListener("close", clearOwnerStats);
 
 function showUpdates(data) {
   $("updates-auto").checked = data.enabled;
@@ -4040,13 +4087,9 @@ function showUpdates(data) {
     : data.message || "Current version: " + data.current;
 }
 async function refreshUpdates() { showUpdates(await request("/update-settings")); }
-$("open-update-settings").addEventListener("click", () => void run(async () => {
-  $("file-menu").open = false;
-  await refreshUpdates();
-  $("updates-dialog").showModal();
-}));
-$("updates-close").addEventListener("click", () => $("updates-dialog").close());
 $("updates-refresh").addEventListener("click", () => void run(refreshUpdates));
 $("updates-auto").addEventListener("change", event => {
   void run(async () => showUpdates(await request("/update-settings", {body:{enabled:event.target.checked}})));
 });
+
+void initialize();

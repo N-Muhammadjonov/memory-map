@@ -20,10 +20,10 @@ if sys.platform == "win32":  # publisher shown in the file's Properties and in W
     from PyInstaller.utils.win32.versioninfo import (FixedFileInfo, StringFileInfo, StringStruct, StringTable,
                                                      VarFileInfo, VarStruct, VSVersionInfo)
     version = VSVersionInfo(
-        ffi=FixedFileInfo(filevers=(47, 0, 0, 0), prodvers=(47, 0, 0, 0)),
+        ffi=FixedFileInfo(filevers=(48, 0, 0, 0), prodvers=(48, 0, 0, 0)),
         kids=[StringFileInfo([StringTable("040904B0", [
             StringStruct("CompanyName", "Nurmuhammad"), StringStruct("FileDescription", "Memory map"),
-            StringStruct("ProductName", "Memory map"), StringStruct("ProductVersion", "47"),
+            StringStruct("ProductName", "Memory map"), StringStruct("ProductVersion", "48"),
             StringStruct("LegalCopyright", "Nurmuhammad"), StringStruct("OriginalFilename", "MemoryMap.exe")])]),
               VarFileInfo([VarStruct("Translation", [1033, 1200])])])
 
@@ -48,8 +48,8 @@ if sys.platform == "darwin":
                   console=False, upx=False, codesign_identity=mac_identity)
     app_dir = COLLECT(app_exe, a.binaries, a.datas, strip=False, upx=False, name="MemoryMapGUI")
     app_bundle = BUNDLE(app_dir, name="Memory map.app", icon="assets/memory-map.icns",
-                        bundle_identifier="com.memorymap.app", version="47.0",
+                        bundle_identifier="com.memorymap.app", version="48.0",
                         info_plist={"CFBundleDisplayName": "Memory map", "CFBundleName": "Memory map",
-                                    "CFBundleVersion": "47", "NSHighResolutionCapable": True,
+                                    "CFBundleVersion": "48", "NSHighResolutionCapable": True,
                                     "NSMicrophoneUsageDescription": "Memory map uses your microphone when you choose Voice to dictate a note.",
                                     "NSSpeechRecognitionUsageDescription": "Memory map converts your speech to note text when you choose Voice."})

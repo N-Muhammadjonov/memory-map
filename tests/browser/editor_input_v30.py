@@ -24,7 +24,7 @@ def main():
     failures = []
     try:
         with sync_playwright() as pw:
-            browser = pw.chromium.launch()
+            browser = pw.chromium.launch(executable_path=os.getenv("QA_BROWSER"))
             for label, viewport in [("desktop", {"width": 1280, "height": 800}), ("phone", {"width": 390, "height": 844})]:
                 page = browser.new_page(viewport=viewport)
                 errors = []
@@ -80,17 +80,17 @@ def main():
                     failures.append(f"{label}: page overflows horizontally by {overflow}px")
                 # English spell check toggle
                 button = page.locator("#spell-toggle")
-                if not button.is_visible():
-                    page.locator("#file-menu summary").click()
+                language = page.locator("#language-menu summary")
+                if not language.is_visible():
+                    page.locator("#file-menu > summary").click()
+                language.click()
                 button.click()
                 state = page.evaluate("({doc: document.querySelector('.notion-doc').spellcheck, lang: document.querySelector('.notion-doc').lang, title: document.getElementById('title').spellcheck, stored: localStorage.getItem('memorymap-spell-en')})")
                 if state != {"doc": True, "lang": "en", "title": True, "stored": "1"}:
                     failures.append(f"{label}: spell check did not turn on: {state}")
-                if page.locator("#spell-toggle").text_content() != "Spell ✓":
-                    failures.append(f"{label}: spell button label")
-                if not page.locator("#spell-toggle").is_visible():
-                    page.locator("#file-menu summary").click()
-                page.locator("#spell-toggle").click()
+                if button.get_attribute("aria-checked") != "true":
+                    failures.append(f"{label}: spell switch state")
+                button.click()
                 if page.evaluate("document.querySelector('.notion-doc').spellcheck"):
                     failures.append(f"{label}: spell check did not turn off")
                 if errors:

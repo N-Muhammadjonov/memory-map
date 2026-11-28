@@ -382,6 +382,30 @@ Object.assign(DICT.uz, {
   "graph-shared": "Umumiy teg yoki atamalar — {items}",
 });
 
+Object.assign(DICT.en, {
+  "spell-check": "Spelling", "profile-settings": "Settings", "profile-account": "Account", "profile-security": "Security", "profile-usage": "Owner statistics", "profile-data": "Import & export", "profile-updates": "Updates",
+});
+
+Object.assign(DICT.uz, {
+  "spell-check": "Imlo", "profile-settings": "Sozlamalar", "profile-account": "Hisob", "profile-security": "Xavfsizlik", "profile-usage": "Egasi statistikasi", "profile-data": "Import va eksport", "profile-updates": "Yangilanishlar",
+});
+
+Object.assign(DICT.ru, {
+  "spell-check": "Правописание", "profile-settings": "Настройки", "profile-account": "Аккаунт", "profile-security": "Безопасность", "profile-usage": "Статистика владельца", "profile-data": "Импорт и экспорт", "profile-updates": "Обновления",
+});
+
+Object.assign(DICT.tr, {
+  "spell-check": "Yazım denetimi", "profile-settings": "Ayarlar", "profile-account": "Hesap", "profile-security": "Güvenlik", "profile-usage": "Sahip istatistikleri", "profile-data": "İçe ve dışa aktar", "profile-updates": "Güncellemeler",
+});
+
+Object.assign(DICT.es, {
+  "spell-check": "Ortografía", "profile-settings": "Ajustes", "profile-account": "Cuenta", "profile-security": "Seguridad", "profile-usage": "Estadísticas del propietario", "profile-data": "Importar y exportar", "profile-updates": "Actualizaciones",
+});
+
+Object.assign(DICT.ar, {
+  "spell-check": "التدقيق الإملائي", "profile-settings": "الإعدادات", "profile-account": "الحساب", "profile-security": "الأمان", "profile-usage": "إحصاءات المالك", "profile-data": "الاستيراد والتصدير", "profile-updates": "التحديثات",
+});
+
 DICT.ru["fb-note"] = "Сообщение и выбранный снимок экрана отправляются вместе с версией приложения и платформой.";
 DICT.tr["fb-note"] = "Mesajınız ve seçtiğiniz ekran görüntüsü uygulama sürümü ve platformla birlikte gönderilir.";
 DICT.es["fb-note"] = "Tu mensaje y la captura opcional se envían junto con la versión de la app y la plataforma.";
@@ -664,7 +688,7 @@ const ID_MAP = {
   "nav-map": "nav-map", "nav-mind": "nav-mind", "nav-db": "nav-db",
   "nav-calendar": "nav-calendar", "nav-roadmaps": "nav-roadmaps", "daily-note": "daily-note",
   "study-vault": "study-vault", "open-templates": "open-templates", "show-files": "show-files",
-  "tab-map": "tab-map", "tab-mind": "tab-mind", "tab-db": "tab-db",
+  "tab-map": "tab-map", "tab-db": "tab-db",
   "share-note": "share-note", "study-note": "study-note", "note-history": "note-history",
   "draw-note": "draw-note", "voice-note": "voice-note", "trash": "trash", "lock": "lock",
   "empty-trash": "empty-trash", "list-heading": "list-heading",

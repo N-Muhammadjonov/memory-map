@@ -253,7 +253,7 @@ class Server(ThreadingHTTPServer):
         self.agent_key = secrets.token_urlsafe(24)
         self.agent_proposals.clear()
 
-    def session_status(self) -> dict[str, bool]:
+    def session_status(self) -> dict[str, bool | str]:
         authenticated = self.account.authorized()
         if not authenticated and self.vault.cipher is not None:
             self.vault.lock()
@@ -263,7 +263,8 @@ class Server(ThreadingHTTPServer):
             self.ai.reset()
         if not status["unlocked"] and self.agent_enabled:
             self.close_agent_access()
-        return {**status, "exists": status["exists"] if authenticated else False, "authenticated": authenticated}
+        return {**status, "exists": status["exists"] if authenticated else False, "authenticated": authenticated,
+                "accountEmail": self.account.user.get("email", "") if authenticated else ""}
 
     def restore_backup_status(self) -> None:
         stored = settings.load(self.vault, "backup_status", {})

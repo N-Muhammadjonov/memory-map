@@ -168,20 +168,24 @@ function authorized(request, env) {
 // Authorization lives in the identity project. Never trust email or role claims
 // supplied by the app, and do not expose a shared admin credential to clients.
 // Call the runtime fetch through its receiver; detached platform functions can throw.
-export async function ownerAuthorized(request, env, fetcher = (...args) => globalThis.fetch(...args)) {
+export async function ownerAccessStatus(request, env, fetcher = (...args) => globalThis.fetch(...args)) {
   const auth = request.headers.get("Authorization") || "";
-  if (!/^Bearer [A-Za-z0-9_.-]{20,8192}$/.test(auth)
-      || !/^https:\/\/[a-z0-9-]+\.supabase\.co$/.test(env.AUTH_URL || "")
-      || !String(env.AUTH_KEY || "").startsWith("sb_publishable_")) return false;
+  if (!/^Bearer [A-Za-z0-9_.-]{20,8192}$/.test(auth)) return 403;
+  if (!/^https:\/\/[a-z0-9-]+\.supabase\.co$/.test(env.AUTH_URL || "")
+      || !String(env.AUTH_KEY || "").startsWith("sb_publishable_")) return 503;
   try {
     const response = await fetcher(env.AUTH_URL + "/rest/v1/rpc/owner_account_stats", {
-      method: "POST", redirect: "error",
-      headers: {Authorization: auth, apikey: env.AUTH_KEY, "Content-Type": "application/json"},
+      // Workers supports manual redirects. Check the response without forwarding the token.
+      method: "POST", redirect: "manual",
+      headers: {Authorization: auth, apikey: env.AUTH_KEY, Accept: "application/json", "Content-Type": "application/json"},
       body: "{}",
     });
-    return response.ok && (await response.json()).owner === true;
+    if (response.status === 401 || response.status === 403) return 403;
+    if (!response.ok) return 503;
+    const owner = (await response.json()).owner;
+    return owner === true ? 200 : owner === false ? 403 : 503;
   } catch {
-    return false;
+    return 502;
   }
 }
 
@@ -278,7 +282,9 @@ export async function handle(request, env) {
       "Content-Security-Policy": "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; img-src blob:; base-uri 'none'; form-action 'none'"}});
   }
   if (url.pathname === "/owner/stats" && request.method === "GET") {
-    if (!await ownerAuthorized(request, env)) return json({error: "owner access required"}, 403);
+    const access = await ownerAccessStatus(request, env);
+    if (access === 403) return json({error: "owner access required"}, 403);
+    if (access !== 200) return json({error: "usage service unavailable"}, access);
     return json(await stats(env, url.searchParams.get("days")));
   }
   if (url.pathname === "/admin/stats" && request.method === "GET") {

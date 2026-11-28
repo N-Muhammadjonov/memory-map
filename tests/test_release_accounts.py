@@ -134,7 +134,10 @@ class AccountTests(unittest.TestCase):
         def unavailable(token):
             raise VaultError("service unavailable", 503)
         self.account.usage_transport = unavailable
-        self.assertIsNone(self.account.owner_stats()["usage"])
+        partial = self.account.owner_stats()
+        self.assertEqual(partial["accounts"]["registered"], 3)
+        self.assertIsNone(partial["usage"])
+        self.assertEqual(partial["usageError"], "service unavailable")
         self.account.sign_out()
         self.assertFalse(self.account.status()["owner"])
         with self.assertRaises(VaultError):

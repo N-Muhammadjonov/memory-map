@@ -113,7 +113,6 @@
         <button type="button" id="nav-forward" class="icon-btn" title="Forward" disabled>→</button>
         <nav class="stage-tabs" aria-label="Open tabs">
           <button id="tab-map" type="button" aria-pressed="true">Graph</button>
-          <button id="tab-mind" type="button" aria-pressed="false">Mind map</button>
           <button id="tab-db" type="button" aria-pressed="false">Databases</button>
           <div class="note-tabs" id="note-tabs"></div>
           <div class="note-tab file-tab" id="file-tab" hidden>
@@ -126,30 +125,11 @@
           <button type="button" id="toggle-split" class="icon-btn" title="Split view: 3D graph and note" aria-label="Split view" aria-pressed="false">◫</button>
           <button type="button" id="toggle-zen" class="icon-btn" title="Focus mode (⌘⇧F)" aria-label="Focus mode" aria-pressed="false">⛶</button>
           <button type="button" id="open-a11y" class="ghost-btn" title="Accessibility & reading settings">Aa</button>
-      <select id="font-size-select" class="compact bubble-font-size" title="Text size (selected text only)" aria-label="Text size">
-        <option value="">Text size</option>
-        <option value="default">Default</option>
-        <option value="8">8 pt</option>
-        <option value="9">9 pt</option>
-        <option value="10">10 pt</option>
-        <option value="11">11 pt</option>
-        <option value="12">12 pt</option>
-        <option value="14">14 pt</option>
-        <option value="16">16 pt</option>
-        <option value="18">18 pt</option>
-        <option value="20">20 pt</option>
-        <option value="22">22 pt</option>
-        <option value="24">24 pt</option>
-        <option value="26">26 pt</option>
-        <option value="28">28 pt</option>
-        <option value="32">32 pt</option>
-        <option value="36">36 pt</option>
-        <option value="48">48 pt</option>
-        <option value="72">72 pt</option>
-      </select>
           <details class="menu language-menu" id="language-menu"><summary class="ghost-btn" id="language-summary" aria-label="Language and spell check">Language</summary><div class="dropdown">
           <select id="lang-select" class="compact lang-select" aria-label="Language" title="Interface language (EN / UZ / RU / TR / ES / AR)"></select>
-          <button type="button" id="spell-toggle" class="ghost-btn" aria-pressed="false" title="English spell check: underlines misspelled words while you write (uses your browser's dictionary)">Spell</button>
+          <button type="button" id="spell-toggle" class="spell-switch" role="switch" aria-checked="false" title="Uses your browser’s English dictionary">
+            <span data-i18n="spell-check">Spelling</span><span class="spell-switch-track" aria-hidden="true"></span>
+          </button>
           </div></details>
           <button type="button" id="cycle-theme" class="ghost-btn" title="Theme: Dark / Slate / Paper">Theme</button>
           <button type="button" id="toggle-inspector" class="icon-btn" title="Details panel" aria-label="Details panel" aria-pressed="false">◨</button>
@@ -161,27 +141,18 @@
               <button type="button" id="open-onboarding">Profession workspaces…</button>
               <button type="button" id="open-bibtex">Import BibTeX citation…</button>
               <button type="button" id="open-clipper">Web Clipper…</button>
-              <button type="button" id="export-note-docx">Export current note (.docx)</button>
-              <button type="button" id="export-note-epub">Export current note (.epub)</button>
               <button type="button" id="menu-folder">Import vault folder</button>
               <button type="button" id="import">Import file (.md / .txt)</button>
               <button type="button" id="import-markdown-zip">Import Obsidian / Markdown ZIP</button>
               <button type="button" id="import-web-zip">Import Notion / Web Export ZIP</button>
               <button type="button" id="import-properties">Import legacy note properties</button>
-              <button type="button" id="export-encrypted-zip">Send encrypted ZIP to account…</button>
-              <button type="button" id="import-encrypted-zip">Import encrypted account ZIP…</button>
-              <button type="button" id="open-mirror">Markdown folder mirror…</button>
-              <button type="button" id="open-account">Account…</button>
-              <button type="button" id="open-update-settings">Updates…</button>
               <button type="button" id="open-ai-chat" data-i18n="ai-title">AI assistant</button>
               <button type="button" id="open-ai-providers" data-i18n="ai-settings-title">AI settings</button>
-              <button type="button" id="open-recovery">Recovery key…</button>
-              <button type="button" id="export">Export Markdown (.zip)</button>
-              <button type="button" id="export-portable">Export portable vault (.zip)</button>
-              <button type="button" id="export-brain">Export AI Brain (.json)</button>
-              <button type="button" id="backup">Encrypted backup (.xotira)</button>
             </div>
           </details>
+          <button type="button" id="open-account" class="profile-avatar" aria-label="Profile and settings" title="Profile and settings" aria-haspopup="dialog">
+            <span id="account-avatar" aria-hidden="true">?</span>
+          </button>
         </div>
       </header>
 
@@ -266,6 +237,27 @@
           <div class="note-bar-right">
             <button id="note-undo" type="button" class="icon-btn" title="Undo (⌘Z)" aria-label="Undo" disabled>↶</button>
             <button id="note-redo" type="button" class="icon-btn" title="Redo (⌘⇧Z)" aria-label="Redo" disabled>↷</button>
+            <select id="font-size-select" class="compact" title="Text size (selected text only)" aria-label="Text size">
+              <option value="">Text size</option>
+              <option value="default">Default</option>
+              <option value="8">8 pt</option>
+              <option value="9">9 pt</option>
+              <option value="10">10 pt</option>
+              <option value="11">11 pt</option>
+              <option value="12">12 pt</option>
+              <option value="14">14 pt</option>
+              <option value="16">16 pt</option>
+              <option value="18">18 pt</option>
+              <option value="20">20 pt</option>
+              <option value="22">22 pt</option>
+              <option value="24">24 pt</option>
+              <option value="26">26 pt</option>
+              <option value="28">28 pt</option>
+              <option value="32">32 pt</option>
+              <option value="36">36 pt</option>
+              <option value="48">48 pt</option>
+              <option value="72">72 pt</option>
+            </select>
             <button id="note-ai-chat" type="button" class="ghost-btn" data-i18n="ai-title">AI assistant</button>
             <button id="note-attachments" type="button" class="ghost-btn" aria-controls="files">Attachments</button>
             <button id="note-mind-new" type="button" class="ghost-btn">+ Mind map</button>
@@ -1041,28 +1033,69 @@
     </dialog>
 
     <dialog id="account-dialog" aria-labelledby="account-heading">
-      <div class="dialog-head"><h2 id="account-heading">Memory map account</h2><button type="button" id="account-close" aria-label="Close">×</button></div>
-      <p class="agent-sub">Sign in to your online account. Your vault password and notes stay on this device.</p>
-      <p id="account-status" role="status"></p>
-
-      <button id="account-refresh" type="button">Refresh account status</button>
-      <button id="account-signout" type="button" hidden>Sign out</button>
-      <button id="account-owner-stats" type="button" class="primary" hidden>Owner statistics</button>
-    </dialog>
-    <dialog id="owner-stats-dialog" aria-labelledby="owner-stats-heading">
-      <div class="dialog-head"><h2 id="owner-stats-heading">Owner statistics</h2><button type="button" id="owner-stats-close" aria-label="Close">×</button></div>
-      <p class="agent-sub">Account counts and anonymized, opt-in usage. User notes and files are never included.</p>
-      <div class="owner-stats-toolbar"><button type="button" id="owner-stats-refresh">Refresh</button><span id="owner-stats-status" role="status"></span></div>
-      <div id="owner-stats-content" aria-live="polite"></div>
-    </dialog>
-
-    <dialog id="updates-dialog" aria-labelledby="updates-heading">
-      <div class="dialog-head"><h2 id="updates-heading">Updates</h2><button type="button" id="updates-close" aria-label="Close">×</button></div>
-      <p id="updates-status" role="status"></p>
-      <label class="agent-toggle"><input id="updates-auto" type="checkbox"> Automatically download verified desktop updates</label>
-      <p class="agent-sub">Updates open the next time you launch the app. The current vault stays local.</p>
-      <div class="dialog-actions"><button type="button" id="updates-refresh">Refresh status</button>
-      <a href="https://github.com/N-Muhammadjonov/memory-map/releases" target="_blank" rel="noopener noreferrer">GitHub Releases ↗</a></div>
+      <div class="dialog-head">
+        <h2 id="account-heading" data-i18n="profile-settings">Settings</h2>
+        <button type="button" id="account-close" aria-label="Close">×</button>
+      </div>
+      <div class="settings-layout">
+        <nav class="settings-nav" aria-label="Settings">
+          <button type="button" data-settings-tab="account" aria-current="true" data-i18n="profile-account">Account</button>
+          <button type="button" data-settings-tab="security" data-i18n="profile-security">Security</button>
+          <button type="button" id="account-owner-stats" data-settings-tab="usage" data-i18n="profile-usage" hidden>Owner statistics</button>
+          <button type="button" data-settings-tab="data" data-i18n="profile-data">Import &amp; export</button>
+          <button type="button" data-settings-tab="updates" data-i18n="profile-updates">Updates</button>
+        </nav>
+        <div class="settings-content">
+          <section data-settings-pane="account" aria-labelledby="account-profile-heading">
+            <h3 id="account-profile-heading" data-i18n="profile-account">Account</h3>
+            <div class="settings-identity">
+              <span id="settings-avatar" class="profile-avatar" aria-hidden="true">?</span>
+              <p id="account-status" role="status"></p>
+            </div>
+            <div class="settings-actions">
+              <button id="account-refresh" type="button">Refresh account status</button>
+              <button id="account-signout" type="button" hidden>Sign out</button>
+            </div>
+          </section>
+          <section data-settings-pane="security" aria-labelledby="settings-security-heading" hidden>
+            <h3 id="settings-security-heading" data-i18n="profile-security">Security</h3>
+            <p class="agent-sub">The vault password and recovery key protect the notes stored on this device.</p>
+            <button type="button" id="open-recovery">Recovery key…</button>
+          </section>
+          <section id="owner-stats-panel" data-settings-pane="usage" aria-labelledby="owner-stats-heading" hidden>
+            <h3 id="owner-stats-heading" data-i18n="profile-usage">Owner statistics</h3>
+            <p class="agent-sub">Account counts and anonymized, opt-in usage.</p>
+            <div class="owner-stats-toolbar"><button type="button" id="owner-stats-refresh">Refresh</button><span id="owner-stats-status" role="status"></span></div>
+            <div id="owner-stats-content" aria-live="polite"></div>
+          </section>
+          <section data-settings-pane="data" aria-labelledby="settings-data-heading" hidden>
+            <h3 id="settings-data-heading" data-i18n="profile-data">Import &amp; export</h3>
+            <div class="settings-actions">
+              <button type="button" id="export">Export Markdown (.zip)</button>
+              <button type="button" id="export-portable">Export portable vault (.zip)</button>
+              <button type="button" id="export-brain">Export AI Brain (.json)</button>
+              <button type="button" id="backup">Encrypted backup (.xotira)</button>
+              <button type="button" id="export-note-docx">Export current note (.docx)</button>
+              <button type="button" id="export-note-epub">Export current note (.epub)</button>
+              <button type="button" id="export-encrypted-zip">Send encrypted ZIP to account…</button>
+              <button type="button" id="import-encrypted-zip">Import encrypted account ZIP…</button>
+              <button type="button" id="open-mirror">Markdown folder mirror…</button>
+              <button type="button" id="settings-export-pdf">Print or save current note (.pdf)</button>
+            </div>
+            <p id="settings-export-status" class="agent-sub" role="status"></p>
+          </section>
+          <section data-settings-pane="updates" aria-labelledby="updates-heading" hidden>
+            <h3 id="updates-heading" data-i18n="profile-updates">Updates</h3>
+            <p id="updates-status" role="status"></p>
+            <label class="agent-toggle"><input id="updates-auto" type="checkbox"> Automatically download verified desktop updates</label>
+            <p class="agent-sub">Updates open the next time you launch the app.</p>
+            <div class="settings-actions">
+              <button type="button" id="updates-refresh">Refresh status</button>
+              <a href="https://github.com/N-Muhammadjonov/memory-map/releases" target="_blank" rel="noopener noreferrer">GitHub Releases ↗</a>
+            </div>
+          </section>
+        </div>
+      </div>
     </dialog>
 
     <input type="file" id="import-zip-file" accept=".zip,application/zip" hidden>

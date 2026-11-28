@@ -10,7 +10,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from playwright.sync_api import expect, sync_playwright
 from account_auth import AccountClient
 from app import Server
-from vault import Vault
+from vault import Vault, VaultError
 
 PASSWORD = "browser-fixture-password-40"
 OWNER = "owner-fixture@example.invalid"
@@ -73,7 +73,8 @@ def main():
                         page.fill("#confirmation", PASSWORD)
                     page.click("#unlock-button")
                     page.wait_for_selector("#workspace:not([hidden])")
-                    page.locator("#file-menu summary").click()
+                    expect(page.locator(".stage-right > :last-child")).to_have_attribute("id", "open-account")
+                    expect(page.locator("#account-avatar")).to_have_text("RF" if email == REGULAR else "OF")
                     page.locator("#open-account").click()
                     expect(page.locator("#account-dialog")).to_be_visible()
                     expect(page.locator("#account-status")).to_contain_text(email)
@@ -89,10 +90,24 @@ def main():
                         expect(page.locator("#owner-stats-content")).to_contain_text("12")
                         expect(page.locator("#owner-stats-content")).to_contain_text("Reporting installations")
                         expect(page.locator("#owner-stats-content")).to_contain_text("macos")
+
+                        def usage_unavailable(_token):
+                            raise VaultError("Usage service unavailable in this fixture.", 503)
+
+                        server.account.usage_transport = usage_unavailable
+                        page.click("#owner-stats-refresh")
+                        expect(page.locator("#owner-stats-content")).to_contain_text("12")
+                        expect(page.locator("#owner-stats-content")).to_contain_text("Usage service unavailable in this fixture.")
                         page.set_viewport_size({"width": 390, "height": 844})
-                        assert page.locator("#owner-stats-dialog").evaluate("el => el.scrollWidth <= el.clientWidth + 1")
-                        page.click("#owner-stats-close")
+                        assert page.locator("#account-dialog").evaluate("el => el.scrollWidth <= el.clientWidth + 1")
+                        page.locator('[data-settings-tab="data"]').click()
+                        expect(page.locator("#backup")).to_be_visible()
+                        expect(page.locator("#export")).to_be_visible()
+                        expect(page.locator("#export-note-docx")).to_be_disabled()
+                        expect(page.locator("#owner-stats-panel")).to_be_hidden()
                         expect(page.locator("#owner-stats-content")).to_be_empty()
+                        page.click("#account-close")
+                        expect(page.locator("#account-dialog")).to_be_hidden()
                 assert not errors, errors
                 browser.close()
         finally:

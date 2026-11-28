@@ -1,4 +1,6 @@
 """Real browser regression: selected text size/color, precise reformatting, saved markup, Space exit."""
+import os
+
 from playwright.sync_api import expect, sync_playwright
 from layout_v23 import boot
 
@@ -44,7 +46,7 @@ def main():
     server, url = boot(seed=False)
     try:
         with sync_playwright() as pw:
-            browser = pw.chromium.launch()
+            browser = pw.chromium.launch(executable_path=os.getenv("QA_BROWSER"))
             page = browser.new_page(viewport={"width":1280,"height":800})
             page.goto(url)
             page.wait_for_selector("#password:enabled")
@@ -73,19 +75,19 @@ def main():
             page.locator("#font-size-select").select_option("72")
             assert sized(page,72)==[]
             select_chars(page,11,16)
-            page.locator('.bubble-font-size').select_option('24')
+            page.locator('#font-size-select').select_option('24')
             assert sized(page,24)==["gamma"], sized(page,24)
             assert page.locator('.notion-doc span[data-mm-size="24"]').evaluate('(node)=>getComputedStyle(node).fontSize')=="32px"
             select_chars(page,12,14)
-            page.locator('.bubble-font-size').select_option('12')
+            page.locator('#font-size-select').select_option('12')
             assert sized(page,24)==["g","ma"], sized(page,24)
             assert sized(page,12)==["am"]
             select_chars(page,12,14)
-            page.locator('.bubble-font-size').select_option('default')
+            page.locator('#font-size-select').select_option('default')
             assert sized(page,12)==[]
             assert sized(page,24)==["g","ma"]
             select_chars(page,6,7)
-            page.locator('.bubble-font-size').select_option('18')
+            page.locator('#font-size-select').select_option('18')
             assert sized(page,18)==["b"] and marked(page,"green")==["b","a"]
             # Persist through note navigation (Markdown serialization and rehydration).
             page.click("#title")
@@ -135,12 +137,15 @@ def main():
             expect(page.locator("#spell-toggle")).to_be_hidden()
             page.locator("#language-menu summary").click()
             expect(page.locator("#spell-toggle")).to_be_visible()
-            original_spell = page.locator("#spell-toggle").get_attribute("aria-pressed")
+            original_spell = page.locator("#spell-toggle").get_attribute("aria-checked")
             page.locator("#spell-toggle").click()
-            assert page.locator("#spell-toggle").get_attribute("aria-pressed") != original_spell
+            assert page.locator("#spell-toggle").get_attribute("aria-checked") != original_spell
             page.locator("#language-menu summary").click()
             expect(page.locator("#spell-toggle")).to_be_hidden()
             page.locator("#nav-map").click()
+            expect(page.locator("#font-size-select")).to_be_hidden()
+            expect(page.locator("#nav-mind")).to_be_visible()
+            assert not page.locator(".stage-bar #tab-mind, .stage-bar #font-size-select").count()
             page.locator("#graph-controls-toggle").click()
             page.locator("#open-feedback").click()
             expect(page.locator("#feedback-dialog")).to_be_visible()

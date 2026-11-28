@@ -209,8 +209,12 @@ class AccountClient:
         try:
             with verified_opener(NoRedirect).open(request, timeout=10) as response:
                 result = json.loads(response.read(512 * 1024))
-        except (HTTPError, URLError, OSError, ValueError):
-            raise VaultError("Usage statistics service is unavailable.", 503) from None
+        except HTTPError as error:
+            if error.code in (401, 403):
+                raise VaultError("The usage service could not verify owner access. Account counts above are live.", 503) from None
+            raise VaultError(f"The usage service returned HTTP {error.code}. Account counts above are live.", 503) from None
+        except (URLError, OSError, ValueError):
+            raise VaultError("Could not connect to the usage service. Account counts above are live.", 503) from None
         if not isinstance(result, dict):
             raise VaultError("Usage statistics service returned an invalid response.", 503)
         return result
@@ -219,11 +223,10 @@ class AccountClient:
         summary = self._owner_summary()
         accounts = {key: max(0, value) for key in ("registered", "confirmed", "newLast7", "signedInLast30")
                     if type(value := summary.get(key)) is int}
-        usage = None
         try:
             usage = self.usage_transport(self.access_token)
-        except VaultError:
-            pass
+        except VaultError as error:
+            return {"accounts": accounts, "usage": None, "usageError": str(error)}
         return {"accounts": accounts, "usage": usage}
 
     @staticmethod

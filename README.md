@@ -1,4 +1,4 @@
-# Memory map v47 (kod nomi: Xotira)
+# Memory map v48 (kod nomi: Xotira)
 
 Xotira shifrlangan mahalliy omborda Markdown qaydlar, biriktirmalar, vazifalar va bog‘lanishlarni saqlaydi. Qaydlarni muharrir, jadval, Kanban, galereya, taqvim yoki xaritada oching.
 
@@ -13,7 +13,7 @@ V47 opens in its own application window on macOS, Windows, Linux and Android. Go
 ZIP Downloads ichida ochilgan bo‘lsa, Terminalda quyidagi to‘liq yo‘l bilan ishga tushiring.
 
 ```sh
-sh "$HOME/Downloads/memory-map-v47/start.command"
+sh "$HOME/Downloads/memory-map-v48/start.command"
 ```
 
 ZIP boshqa joyda ochilgan bo‘lsa, Terminalga sh va bitta bo‘sh joy yozing, Finder’dan start.command faylini Terminalga sudrab tashlang va Enter bosing.

@@ -37,8 +37,9 @@ commit real email addresses). Configure the Worker with the public Auth URL
 and publishable key as `AUTH_URL` and `AUTH_KEY`. Only a confirmed account
 with a current server-side session and a matching owner entry can read account
 counts or anonymized usage. Anonymous statistics are off until users opt in.
-In the app, open File → Account, sign in and choose Owner statistics. The app
-labels missing usage data as unavailable rather than inventing zeros.
+After signing in, open the profile button at the right edge of the toolbar and
+choose Owner statistics. Account counts remain visible if the usage service
+returns an error.
 
 ## Release workflow
 
