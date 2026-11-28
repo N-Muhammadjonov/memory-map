@@ -27,7 +27,7 @@ and allowlisted loopback callback
 `http://127.0.0.1:*/account/callback**`. The app uses a random, expiring
 one-time nonce and PKCE. Account passwords never travel through the analytics service. The owner’s short-lived
 access token is sent only to the official Worker when requesting owner statistics;
-it is verified against Supabase and is never stored. Verified Google sign-in is mandatory before vault creation or unlock. Vault locking keeps the current in-memory account session; sign-out and session expiry lock the vault. Tokens are not persisted. Google sign-in does not synchronize notes.
+it is verified against Supabase and is never stored. Verified Google sign-in is mandatory before vault creation or unlock. The primary sign-in link opens the system browser directly. The app bundles public CA roots for verified HTTPS on all platforms, including systems without the Python build host certificate store. Vault locking keeps the current in-memory account session; sign-out and session expiry lock the vault. Tokens are not persisted. Google sign-in does not synchronize notes.
 
 ## Owner statistics
 

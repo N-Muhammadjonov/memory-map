@@ -7,8 +7,8 @@
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="icon" href="/assets/memory-map.svg" type="image/svg+xml">
   <title>Memory map</title>
-  <link rel="stylesheet" href="/styles.css?v=46">
-  <script type="module" src="/app.js?v=46"></script>
+  <link rel="stylesheet" href="/styles.css?v=47">
+  <script type="module" src="/app.js?v=47"></script>
 </head>
 <body>
   <main class="gate" id="gate">
@@ -16,8 +16,7 @@
       <img class="unlock-logo" src="/assets/memory-map.svg" width="76" height="76" alt="">
       <h1>Memory map</h1>
       <p>Sign in with Google to access your encrypted local workspace.</p>
-      <button class="primary" type="button" id="gate-google">Sign in with Google</button>
-      <a id="gate-google-link" target="_blank" rel="noopener noreferrer" hidden>Continue to Google ↗</a>
+      <a class="primary google-signin" id="gate-google" target="_blank" rel="noopener noreferrer" role="button" aria-disabled="true" tabindex="-1">Sign in with Google</a>
       <p id="google-gate-status" role="status">Your notes and vault password stay on this device.</p>
     </section>
     <form class="unlock" id="unlock" hidden>

@@ -37,7 +37,7 @@ public class WorkspaceTest {
             }
         }
         try {
-            int expected = path.startsWith("/api/") && !"/api/status".equals(path) ? 401 : 200;
+            int expected = path.startsWith("/api/") && !"/api/status".equals(path) && !"/api/account".equals(path) ? 401 : 200;
             int actual = conn.getResponseCode();
             if (actual != expected) {
                 String detail = "";
@@ -80,6 +80,8 @@ public class WorkspaceTest {
         try {
             assertTrue(request(location[0],location[1],"/",null).contains("Memory map"));
             assertTrue(request(location[0],location[1],"/api/status",null).contains("false"));
+            String account = request(location[0],location[1],"/api/account",null);
+            assertTrue("Bundled Android HTTPS must reach Google provider settings", new org.json.JSONObject(account).getBoolean("googleAvailable"));
             String body = "{\"password\":\"test-device-vault-password\",\"create\":true,\"confirmation\":\"test-device-vault-password\"}";
             assertTrue(request(location[0],location[1],"/api/create",body).contains("Sign in with Google"));
             assertTrue(request(location[0],location[1],"/api/unlock",body).contains("Sign in with Google"));
@@ -122,7 +124,7 @@ public class WorkspaceTest {
             } while (SystemClock.elapsedRealtime() < deadline);
             WebView view = viewRef.get();
             assertNotNull("The launcher must host a WebView, not open a browser activity", view);
-            waitFor(runner, view, "Boolean(document.querySelector('#google-gate:not([hidden])'))");
+            waitFor(runner, view, "Boolean(document.querySelector('#google-gate:not([hidden]) #gate-google[href^=\"https://\"]'))");
             assertEquals("true", evaluate(runner, view, "location.origin.startsWith('http://127.0.0.1:')"));
             assertEquals("true", evaluate(runner, view, "typeof window.MemoryMapNativeDownloads?.postMessage === 'function'"));
             assertEquals("true", evaluate(runner, view, "typeof window.MemoryMapNativeVoice?.postMessage === 'function'"));

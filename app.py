@@ -192,6 +192,12 @@ def add_markdown(vault: Vault, archive: zipfile.ZipFile, prefix: str = "") -> No
         archive.writestr(prefix + path, text)
 
 
+def configured_account() -> AccountClient:
+    return AccountClient(os.environ.get("XOTIRA_AUTH_URL") or build_config.AUTH_URL,
+                         os.environ.get("XOTIRA_AUTH_KEY") or build_config.AUTH_KEY,
+                         build_config.AUTH_SITE_URL)
+
+
 class Server(ThreadingHTTPServer):
     def __init__(self, vault: Vault, backup_dir: Path | None, *, port: int = 0, ai_developer: bool = False, account: AccountClient | None = None) -> None:
         self.vault = vault
@@ -200,9 +206,7 @@ class Server(ThreadingHTTPServer):
                                    require_consent=build_config.REQUIRE_TELEMETRY_CONSENT)
         self.updater = UpdateManager(default_vault().parent / "updates",
                                      os.environ.get("XOTIRA_GITHUB_REPO") or build_config.GITHUB_REPO, VERSION)
-        self.account = account if account is not None else AccountClient(os.environ.get("XOTIRA_AUTH_URL") or build_config.AUTH_URL,
-                                     os.environ.get("XOTIRA_AUTH_KEY") or build_config.AUTH_KEY,
-                                     build_config.AUTH_SITE_URL)
+        self.account = account if account is not None else configured_account()
         self.voice = VoiceService()
         self.token = secrets.token_urlsafe(32)
         self.public_cookie_secret = secrets.token_urlsafe(32)
@@ -448,10 +452,35 @@ class Handler(BaseHTTPRequestHandler):
             agent_route = route.startswith("/api/agent/") and route != "/api/agent/config"
             self.check_request(api=api, agent_route=agent_route)
             if route == "/account/callback" and self.command == "GET":
-                query = parse_qs(parts.query)
+                query = parse_qs(parts.query, keep_blank_values=True)
+                # Always clear the one-use code from the visible URL. Never display
+                # provider payloads or tokens on a public loopback callback page.
+                result = "error"
+                try:
+                    def one(key: str) -> str:
+                        values = query.get(key, [])
+                        return values[0] if len(values) == 1 else ""
+                    with self.server.mutex:
+                        self.server.account.finish_google(one("nonce"), one("code"),
+                                                          provider_error=one("error"))
+                    result = "success"
+                except VaultError:
+                    # A valid pending attempt records a safe error for the app's
+                    # status poll; stale callbacks do not overwrite newer attempts.
+                    pass
+                self.start_response(303, 0, "text/html; charset=utf-8",
+                                    extra_headers=[("Location", "/account/result/" + result)])
+                return
+            if route in {"/account/result/success", "/account/result/error"} and self.command == "GET":
                 with self.server.mutex:
-                    self.server.account.finish_google(query.get("nonce", [""])[0], query.get("code", [""])[0])
-                content = b"<!doctype html><html lang='en'><meta charset='utf-8'><title>Memory map</title><h1>Account connected</h1><p>Return to the original Memory map window.</p></html>"
+                    connected = route.endswith("/success") and self.server.account.authorized()
+                title = "Account connected" if connected else "Sign-in could not finish"
+                detail = ("Return to the original Memory map window. Your workspace password will be requested there."
+                          if connected else "Return to Memory map for details, then click Sign in with Google again.")
+                content = ("<!doctype html><html lang='en'><meta charset='utf-8'>"
+                           "<meta name='viewport' content='width=device-width,initial-scale=1'>"
+                           "<title>Memory map</title><main><h1>" + title +
+                           "</h1><p>" + detail + "</p><p>You may close this browser tab.</p></main></html>").encode("utf-8")
                 self.start_response(200, len(content), "text/html; charset=utf-8")
                 self.wfile.write(content)
                 return
@@ -610,7 +639,8 @@ class Handler(BaseHTTPRequestHandler):
             session = self.server.session_status()
             signed_in = session["authenticated"]
             self.write_json({
-                **session, "backupError": self.server.backup_error if signed_in else "",
+                **session, "googleLogin": self.server.account.google_login(self.server.origin) if not signed_in else None,
+                "backupError": self.server.backup_error if signed_in else "",
                 "lastBackup": self.server.last_backup if signed_in else "",
                 "automaticBackup": signed_in and self.server.backup_dir is not None,
             })
@@ -1276,10 +1306,15 @@ def main() -> None:
     parser.add_argument("--port", type=int, default=0, help="Local port (for example, 4720 for an AI agent)")
     parser.add_argument("--restore-zip", type=Path, help="Restore a portable ZIP to a new vault")
     parser.add_argument("--ai-dev", action="store_true", help="Enable offline AI developer mode")
+    parser.add_argument("--check-auth-service", action="store_true", help="Check verified Google HTTPS connectivity without opening a vault")
     launch_mode = parser.add_mutually_exclusive_group()
     launch_mode.add_argument("--no-browser", action="store_true", help="Run headless and print the local URL")
     launch_mode.add_argument("--browser", action="store_true", help="Explicitly open the workspace in the default browser")
     args = parser.parse_args()
+    if args.check_auth_service:
+        if configured_account().google_available() is not True:
+            raise SystemExit("Google account service is unavailable or HTTPS verification failed.")
+        return
     path = args.vault.expanduser().resolve()
     backup_dir = args.backup_dir.expanduser().resolve() if args.backup_dir else None
     os.umask(0o077)
@@ -1330,7 +1365,7 @@ def main() -> None:
 
 def report_macos_startup_error(error: BaseException) -> None:
     """Keep native startup failures visible instead of silently closing Finder apps."""
-    if sys.platform != "darwin" or not getattr(sys, "frozen", False) or any(arg in sys.argv for arg in ("--no-browser", "--browser", "--restore-zip")):
+    if sys.platform != "darwin" or not getattr(sys, "frozen", False) or any(arg in sys.argv for arg in ("--no-browser", "--browser", "--restore-zip", "--check-auth-service")):
         return
     try:
         import traceback

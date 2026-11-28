@@ -52,11 +52,19 @@ def main():
                 page.goto(server.origin + "/#" + server.token)
                 expect(page.locator("#google-gate")).to_be_visible()
                 expect(page.locator("#workspace")).to_be_hidden()
+                page.context.route("https://fixture.supabase.co/auth/v1/authorize?*", lambda route: route.fulfill(status=200, content_type="text/html", body="<h1>Synthetic Google authorization</h1>"))
                 for email in (REGULAR, OWNER):
-                    page.click("#gate-google")
-                    link = page.locator("#gate-google-link")
-                    expect(link).to_be_visible()
-                    callback = parse_qs(urlsplit(link.get_attribute("href")).query)["redirect_to"][0]
+                    link = page.locator("#gate-google")
+                    expect(link).to_have_attribute("aria-disabled", "false")
+                    assert page.locator("#gate-google-link").count() == 0
+                    url = link.get_attribute("href")
+                    with page.expect_popup() as opened:
+                        link.click()
+                    popup = opened.value
+                    popup.wait_for_load_state()
+                    assert popup.url == url, popup.url
+                    popup.close()
+                    callback = parse_qs(urlsplit(url).query)["redirect_to"][0]
                     response = page.request.get(callback + "&code=" + email)
                     assert response.ok, response.text()
                     page.locator("#unlock:not([hidden]) #password:enabled").wait_for()

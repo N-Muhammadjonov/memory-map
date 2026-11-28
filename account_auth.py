@@ -6,12 +6,15 @@ import hashlib
 import json
 import re
 import secrets
+import socket
+import ssl
 import time
 from typing import Any, Callable
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode, urlsplit
-from urllib.request import HTTPRedirectHandler, Request, build_opener
+from urllib.request import HTTPRedirectHandler, Request
 
+from secure_transport import verified_opener
 from vault import VaultError
 from telemetry import VERSION
 
@@ -44,16 +47,20 @@ class AccountClient:
         self.user: dict[str, str] = {}
         self.access_token = ""
         self.oauth: tuple[str, str, float] | None = None
+        self.oauth_url = ""
+        self.oauth_error = ""
         self.message = ""
         self.is_owner = False
         self.google_session = False
         self.refresh_token = ""
         self.expires_at = 0.0
+        self.refresh_retry_at = 0.0
 
     def authorized(self) -> bool:
         if not self.google_session or not self.access_token:
             return False
-        if time.monotonic() < self.expires_at - 30:
+        now = time.monotonic()
+        if now < self.expires_at - 30 or (now < self.expires_at and now < self.refresh_retry_at):
             return True
         if self.refresh_token:
             try:
@@ -61,7 +68,13 @@ class AccountClient:
                 user = result.get("user")
                 if isinstance(user, dict) and user.get("id") == self.user.get("id") and self._accept_google(result):
                     return True
-            except (VaultError, TypeError, ValueError):
+            except VaultError as error:
+                # A temporary connection error does not invalidate a still-valid
+                # access token. Retry briefly, but never authorize past expiry.
+                if error.status in (429, 503) and time.monotonic() < self.expires_at:
+                    self.refresh_retry_at = min(self.expires_at, time.monotonic()+5)
+                    return True
+            except (TypeError, ValueError):
                 pass
         self.reset()
         self.message = "Your Google session expired. Sign in again."
@@ -84,6 +97,7 @@ class AccountClient:
         self.google_session = True
         self.refresh_token = refresh
         self.expires_at = time.monotonic() + lifetime
+        self.refresh_retry_at = 0.0
         return True
 
     def status(self) -> dict[str, Any]:
@@ -114,17 +128,37 @@ class AccountClient:
         request = Request(url, method="POST", headers=headers,
                           data=json.dumps(body).encode("utf-8"))
         try:
-            with build_opener(NoRedirect).open(request, timeout=12) as response:
+            with verified_opener(NoRedirect).open(request, timeout=12) as response:
                 raw = response.read(256 * 1024)
             result = json.loads(raw) if raw else {}
         except HTTPError as error:
+            # Inspect only the provider's machine-readable error code. Never log
+            # response bodies, authorization codes, tokens, or user information.
+            try:
+                detail = json.loads(error.read(16384))
+                code = detail.get("error_code", "") if isinstance(detail, dict) else ""
+                if not isinstance(code, str):
+                    code = ""
+            except (OSError, ValueError, TypeError):
+                code = ""
             if error.code == 429:
-                raise VaultError("Too many requests. Try again later.", 429) from None
-            if error.code == 400 or error.code == 401 or error.code == 422:
-                raise VaultError("Account request failed. Check your credentials or confirmation email.", 400) from None
-            raise VaultError("Account service is temporarily unavailable.", 503) from None
-        except (URLError, OSError, ValueError):
-            raise VaultError("Account service is temporarily unavailable.", 503) from None
+                raise VaultError("Too many sign-in requests. Wait a moment and try again.", 429) from None
+            if code in {"flow_state_expired", "flow_state_not_found", "bad_code_verifier", "validation_failed"} or error.code in (400, 422):
+                raise VaultError("The sign-in code expired or was rejected. Sign in with Google again.", 400) from None
+            if error.code in (401, 403):
+                raise VaultError("The account service rejected the request. Check your account or app configuration and try again.", 401) from None
+            raise VaultError(f"Account service returned HTTP {error.code}. Try signing in again.", 503) from None
+        except (URLError, OSError, ValueError) as error:
+            reason = error.reason if isinstance(error, URLError) else error
+            if isinstance(reason, ssl.SSLCertVerificationError):
+                message = "Could not verify the account service's HTTPS certificate. Check your system date, network and app version."
+            elif isinstance(reason, (TimeoutError, socket.timeout)):
+                message = "The account service timed out. Check your connection and sign in again."
+            elif isinstance(reason, socket.gaierror):
+                message = "Could not reach the account service. Check your internet connection and DNS."
+            else:
+                message = "Could not connect to the account service securely. Check your internet connection and sign in again."
+            raise VaultError(message, 503) from None
         return result if isinstance(result, dict) else {}
 
     def _request_providers(self) -> dict[str, Any]:
@@ -133,7 +167,7 @@ class AccountClient:
                           headers={"apikey": self.key, "Accept": "application/json",
                                    "User-Agent": f"MemoryMap/{VERSION}"})
         try:
-            with build_opener(NoRedirect).open(request, timeout=15) as response:
+            with verified_opener(NoRedirect).open(request, timeout=15) as response:
                 result = json.loads(response.read(128 * 1024))
         except (HTTPError, URLError, OSError, ValueError):
             return {}
@@ -173,7 +207,7 @@ class AccountClient:
                           headers={"Authorization": "Bearer " + token, "Accept": "application/json",
                                    "User-Agent": f"MemoryMap/{VERSION}"})
         try:
-            with build_opener(NoRedirect).open(request, timeout=10) as response:
+            with verified_opener(NoRedirect).open(request, timeout=10) as response:
                 result = json.loads(response.read(512 * 1024))
         except (HTTPError, URLError, OSError, ValueError):
             raise VaultError("Usage statistics service is unavailable.", 503) from None
@@ -224,29 +258,63 @@ class AccountClient:
             raise VaultError("Confirm your email before signing in.", 401)
         return self.status()
 
+    def _prepare_google(self, origin: str) -> str:
+        self._require()
+        verifier = secrets.token_urlsafe(48)
+        nonce = secrets.token_urlsafe(24)
+        # Allow users time to finish Google account selection or MFA. Supabase
+        # independently enforces the much shorter, one-time auth code lifetime.
+        self.oauth = (nonce, verifier, time.monotonic() + 900)
+        challenge = base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest()).rstrip(b"=").decode()
+        redirect = f"{origin}/account/callback?nonce={nonce}"
+        self.oauth_url = self.url + "/auth/v1/authorize?" + urlencode({
+            "provider": "google", "redirect_to": redirect,
+            "code_challenge": challenge, "code_challenge_method": "s256",
+        })
+        return self.oauth_url
+
+    def google_login(self, origin: str) -> dict[str, str]:
+        """Prepare the real link before a click, preserving the native user gesture."""
+        if self.google_session:
+            return {"url": "", "message": ""}
+        if not self.configured:
+            return {"url": "", "message": "Online account service is not configured."}
+        if self.oauth is None or time.monotonic() >= self.oauth[2]:
+            if self.oauth is not None:
+                self.oauth_error = "Your sign-in attempt expired. Click Sign in with Google again."
+            self._prepare_google(origin)
+        return {"url": self.oauth_url, "message": self.oauth_error or self.message}
+
     def begin_google(self, origin: str) -> str:
         self._require()
         if self.google_available() is False:
             raise VaultError("Google sign-in is not enabled on the account service yet.", 503)
-        verifier = secrets.token_urlsafe(48)
-        nonce = secrets.token_urlsafe(24)
-        self.oauth = (nonce, verifier, time.monotonic() + 300)
-        challenge = base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest()).rstrip(b"=").decode()
-        redirect = f"{origin}/account/callback?nonce={nonce}"
-        return self.url + "/auth/v1/authorize?" + urlencode({
-            "provider": "google", "redirect_to": redirect,
-            "code_challenge": challenge, "code_challenge_method": "s256",
-        })
+        self.oauth_error = ""
+        return self._prepare_google(origin)
 
-    def finish_google(self, nonce: str, code: str) -> bool:
+    def finish_google(self, nonce: str, code: str, *, provider_error: str = "") -> bool:
         pending = self.oauth
-        if (not pending or not nonce or not secrets.compare_digest(nonce, pending[0])
-                or not code or len(code) > 4096 or time.monotonic() > pending[2]):
-            raise VaultError("Sign-in attempt expired. Start again.", 400)
+        if not pending or not nonce or not secrets.compare_digest(nonce, pending[0]):
+            # A stale or foreign callback must not cancel the current attempt.
+            raise VaultError("This sign-in attempt is no longer active. Return to Memory map.", 400)
         self.oauth = None
-        result = self.transport("token?grant_type=pkce", {"auth_code": code, "code_verifier": pending[1]})
-        if not self._accept_google(result):
-            raise VaultError("Google account could not be verified.", 401)
+        self.oauth_url = ""
+        try:
+            if time.monotonic() > pending[2]:
+                raise VaultError("Sign-in attempt expired. Click Sign in with Google again.", 400)
+            if provider_error:
+                if provider_error in {"access_denied", "user_cancelled"}:
+                    raise VaultError("Google sign-in was cancelled. You can try again.", 400)
+                raise VaultError("Google did not complete sign-in. Check your account and try again.", 400)
+            if not code or len(code) > 4096:
+                raise VaultError("Google did not return an authorization code. Try signing in again.", 400)
+            result = self.transport("token?grant_type=pkce", {"auth_code": code, "code_verifier": pending[1]})
+            if not self._accept_google(result):
+                raise VaultError("Google account could not be verified. Sign in again.", 401)
+        except VaultError as error:
+            self.oauth_error = str(error)
+            raise
+        self.oauth_error = ""
         return True
 
     def sign_out(self) -> dict[str, Any]:

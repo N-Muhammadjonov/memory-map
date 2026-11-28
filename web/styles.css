@@ -1555,3 +1555,9 @@ span[data-mm-size="72"] { font-size: 72pt; }
 .language-menu select { width: 100%; max-width: none; }
 
 #compact-actions .language-menu .dropdown { position: static; min-width: 0; box-shadow: none; margin-top: 3px; }
+
+/* A real external link keeps the OS browser launch inside the original click. */
+.google-signin { display: block; text-align: center; text-decoration: none; border: 1px solid var(--action); border-radius: 8px; background: var(--action); color: var(--on-action); font-weight: 600; cursor: pointer; }
+.google-signin:hover { background: var(--action-hover); border-color: var(--action-hover); }
+.google-signin[aria-disabled="true"] { opacity: .55; cursor: not-allowed; }
+.google-signin:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }

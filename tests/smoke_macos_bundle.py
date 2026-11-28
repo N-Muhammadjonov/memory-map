@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import re
+import os
+import plistlib
 import socket
 import subprocess
 import sys
@@ -17,6 +19,14 @@ def main() -> None:
 
     bundle = Path(sys.argv[1]).resolve()
     assert bundle.is_dir() and bundle.suffix == ".app"
+    assert any(p.is_file() for p in (bundle/"Contents").rglob("cacert.pem")), "Missing CA bundle in installed macOS app"
+    with (bundle/"Contents"/"Info.plist").open("rb") as stream:
+        executable = bundle/"Contents"/"MacOS"/plistlib.load(stream)["CFBundleExecutable"]
+    with tempfile.TemporaryDirectory(prefix="memorymap-auth-health-") as ca_folder:
+        env = {**os.environ, "SSL_CERT_FILE": str(Path(ca_folder)/"missing-ca.pem"),
+               "SSL_CERT_DIR": str(Path(ca_folder)/"missing-cert-dir")}
+        subprocess.run([str(executable), "--check-auth-service"], env=env, check=True, timeout=35)
+        print("PASS: installed macOS app verified live Google HTTPS without build-host CA paths")
     bundle_id = "com.memorymap.app"
     existing = {int(app.processIdentifier()) for app in NSRunningApplication.runningApplicationsWithBundleIdentifier_(bundle_id)}
     with socket.socket() as listener:

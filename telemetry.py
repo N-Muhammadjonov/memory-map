@@ -6,6 +6,8 @@ passwords and IP addresses are never part of it, and the user can preview the ex
 
 from __future__ import annotations
 
+from secure_transport import verified_opener
+
 import base64
 import binascii
 import json
@@ -24,7 +26,7 @@ from uuid import uuid4
 import settings
 from vault import Vault, VaultError
 
-VERSION = "v46"
+VERSION = "v47"
 FEATURES = ("home", "graph", "mindmap", "mindmap_view", "databases", "calendar", "roadmaps", "flashcards", "templates",
             "study", "daily", "search", "backup", "transfer", "import", "share", "publish_host", "attachments",
             "tasks", "clipper", "ai_agent", "ai_export")
@@ -80,7 +82,7 @@ def http_post(url: str, payload: dict[str, Any]) -> bool:
     request = urllib.request.Request(url, data=json.dumps(payload).encode(), method="POST",
                                      headers={"Content-Type": "application/json", "User-Agent": f"MemoryMap/{VERSION}"})
     try:
-        with urllib.request.build_opener(_NoRedirect).open(request, timeout=8) as response:
+        with verified_opener(_NoRedirect).open(request, timeout=8) as response:
             return 200 <= response.status < 300
     except (urllib.error.URLError, TimeoutError, ValueError, OSError):
         return False
@@ -286,7 +288,7 @@ def _http_get_json(url: str) -> dict[str, Any] | None:
         headers={"Accept": "application/vnd.github+json", "User-Agent": f"MemoryMap/{VERSION}"},
     )
     try:
-        with urllib.request.build_opener(_NoRedirect).open(request, timeout=5) as response:
+        with verified_opener(_NoRedirect).open(request, timeout=5) as response:
             if 200 <= response.status < 300:
                 data = json.loads(response.read().decode("utf-8"))
                 return data if isinstance(data, dict) else None

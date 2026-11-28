@@ -16,10 +16,11 @@ import tempfile
 import threading
 import time
 from pathlib import Path
+from secure_transport import verified_opener
 from typing import Any, Callable
 from urllib.error import URLError
 from urllib.parse import urlsplit
-from urllib.request import HTTPRedirectHandler, Request, build_opener
+from urllib.request import HTTPRedirectHandler, Request
 
 MAX_DOWNLOAD = 500 * 1024 * 1024
 REPO_PATTERN = re.compile(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+")
@@ -74,7 +75,7 @@ def fetch_release(repo: str) -> dict[str, Any]:
         return {}
     request = Request(f"https://api.github.com/repos/{repo}/releases/latest",
                       headers={"Accept": "application/vnd.github+json", "User-Agent": "MemoryMap-Updater"})
-    with build_opener(ReleaseRedirect).open(request, timeout=15) as response:
+    with verified_opener(ReleaseRedirect).open(request, timeout=15) as response:
         raw = response.read(2 * 1024 * 1024 + 1)
     if len(raw) > 2 * 1024 * 1024:
         raise ValueError("Release metadata is too large")
@@ -103,7 +104,7 @@ def download_asset(asset: dict[str, Any], destination: Path) -> None:
     try:
         request = Request(asset["url"], headers={"User-Agent": "MemoryMap-Updater"})
         count = 0
-        with os.fdopen(fd, "wb") as output, build_opener(ReleaseRedirect).open(request, timeout=30) as response:
+        with os.fdopen(fd, "wb") as output, verified_opener(ReleaseRedirect).open(request, timeout=30) as response:
             while chunk := response.read(128 * 1024):
                 count += len(chunk)
                 if count > asset["size"]:

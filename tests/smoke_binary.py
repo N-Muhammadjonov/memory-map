@@ -10,6 +10,7 @@ import sys
 import tempfile
 from pathlib import Path
 from urllib.request import Request, urlopen
+from urllib.parse import parse_qs, urlsplit
 from urllib.error import HTTPError
 
 PASSWORD = "disposable-binary-smoke-password"
@@ -19,8 +20,12 @@ def main() -> None:
     binary = os.path.abspath(sys.argv[1])
     with tempfile.TemporaryDirectory(prefix="memorymap-smoke-") as folder:
         path = Path(folder) / "smoke.xotira"
+        # Reproduce the missing build-machine CA file on an end-user system.
+        # The release must work with its own trust store, not a runner's OpenSSL.
+        env = {**os.environ, "SSL_CERT_FILE": str(Path(folder)/"missing-ca.pem"),
+               "SSL_CERT_DIR": str(Path(folder)/"missing-cert-dir")}
         process = subprocess.Popen([binary, "--vault", str(path), "--no-browser"],
-                                   stdout=subprocess.PIPE, text=True, cwd=folder)
+                                   stdout=subprocess.PIPE, text=True, cwd=folder, env=env)
         try:
             match = re.search(r"(http://127\.0\.0\.1:\d+)/#([A-Za-z0-9_-]+)", process.stdout.readline())
             assert match, "the program did not print its local address"
@@ -39,6 +44,18 @@ def main() -> None:
                 assert request(asset)[0] == 200, asset
             state = json.loads(request("/api/status")[1])
             assert state["unlocked"] is False and state["authenticated"] is False
+            # Real live provider settings, with certificate validation intact.
+            account = json.loads(request("/api/account")[1])
+            assert account["configured"] is True and account["googleAvailable"] is True, "Bundled HTTPS connection to Google auth settings failed"
+            callback = parse_qs(urlsplit(state["googleLogin"]["url"]).query)["redirect_to"][0]
+            # A deliberately invalid fixture code must reach Supabase and be
+            # rejected as a code, not fail due to missing CA or a transport error.
+            status, response = request(callback.removeprefix(base) + "&code=invalid-release-smoke-fixture")
+            assert status == 200 and b"Sign-in could not finish" in response
+            retry = json.loads(request("/api/status")[1])
+            assert not retry["authenticated"] and retry["googleLogin"]["url"] != state["googleLogin"]["url"]
+            assert "code" in retry["googleLogin"]["message"].lower(), retry["googleLogin"]["message"]
+            print("PASS bundled HTTPS Google settings and token endpoint rejection with missing system CA files")
             for route, body in [("/api/create", {"password": PASSWORD}), ("/api/unlock", {"password": PASSWORD}), ("/api/notes", None), ("/api/voice", {"action": "start", "id": "0"*36, "language": "en"})]:
                 try:
                     request(route, body)

@@ -51,6 +51,7 @@ try {
 
 const state = {
   accountAuthenticated: false,
+  googleClickUrl: "",
   unlocked: false, exists: false, note: null, dirty: false,
   editVersion: 0, saving: null, timer: 0, searchTimer: 0,
   refreshSequence: 0, openSequence: 0, lastTouch: 0,
@@ -201,7 +202,12 @@ function gateError(message) {
 function showGate({exists, authenticated = state.accountAuthenticated, message = ""}) {
   const hadAccount = state.accountAuthenticated;
   state.accountAuthenticated = authenticated;
-  if (authenticated || hadAccount) $("gate-google-link").hidden = true;
+  if (authenticated || hadAccount) {
+    $("gate-google").removeAttribute("href");
+    $("gate-google").setAttribute("aria-disabled", "true");
+    $("gate-google").tabIndex = -1;
+    state.googleClickUrl = "";
+  }
   if (!authenticated && hadAccount && !message) message = "Your Google session ended. Sign in again.";
   $("google-gate").hidden = authenticated;
   $("unlock").hidden = !authenticated;
@@ -2070,7 +2076,12 @@ async function download(path, fallback, saveFirst = true) {
 
 async function updateStatus() {
   const metadata = await request("/status");
-  if (metadata.authenticated !== state.accountAuthenticated) { showGate(metadata); return metadata; }
+  if (metadata.authenticated !== state.accountAuthenticated) {
+    showGate(metadata);
+    if (!metadata.authenticated) renderGoogleLogin(metadata.googleLogin);
+    return metadata;
+  }
+  if (!metadata.authenticated) renderGoogleLogin(metadata.googleLogin);
   if (!state.unlocked) return metadata;
   if (!metadata.unlocked) { showGate(metadata); return metadata; }
   const changed = state.lastBackup !== metadata.lastBackup;
@@ -3155,7 +3166,10 @@ async function initialize() {
   setInterval(() => { if (!state.folderImport) void run(updateStatus); }, 3_000);
   setInterval(() => { if (state.unlocked && !document.hidden && !state.folderImport) void run(refreshReminders); }, 15_000);
   document.addEventListener("visibilitychange", () => {
-    if (state.unlocked && !document.hidden) void run(refreshReminders);
+    if (!document.hidden) {
+      void run(updateStatus);
+      if (state.unlocked) void run(refreshReminders);
+    }
   });
 }
 
@@ -3880,23 +3894,48 @@ $("open-account").addEventListener("click", () => void run(async () => {
 }));
 $("account-close").addEventListener("click", () => $("account-dialog").close());
 $("account-refresh").addEventListener("click", () => void run(refreshAccount));
-$("gate-google").addEventListener("click", async () => {
+function renderGoogleLogin(login) {
   const button = $("gate-google");
-  button.disabled = true;
-  try {
-    const data = await request("/account", {body: {action: "google"}});
-    const link = $("gate-google-link");
-    link.href = data.url;
-    link.hidden = false;
-    $("google-gate-status").textContent = "Open Continue to Google, then return to this window after signing in.";
-  } catch (error) { $("google-gate-status").textContent = error.message; }
-  finally { button.disabled = false; }
+  const url = login?.url || "";
+  if (!url) {
+    button.removeAttribute("href");
+    button.setAttribute("aria-disabled", "true");
+    button.tabIndex = -1;
+    $("google-gate-status").textContent = login?.message || "Connecting to the account service…";
+    return;
+  }
+  if (button.getAttribute("href") !== url) {
+    state.googleClickUrl = "";
+    button.href = url;
+  }
+  button.setAttribute("aria-disabled", "false");
+  button.tabIndex = 0;
+  $("google-gate-status").textContent = state.googleClickUrl === url
+    ? "Google sign-in opened in your browser. Return here when finished, or click again to retry."
+    : login.message || "Your notes and vault password stay on this device.";
+}
+$("gate-google").addEventListener("click", event => {
+  const button = $("gate-google");
+  if (button.getAttribute("aria-disabled") === "true" || !button.getAttribute("href")) {
+    event.preventDefault();
+    return;
+  }
+  state.googleClickUrl = button.getAttribute("href");
+  $("google-gate-status").textContent = "Google sign-in opened in your browser. Return here when finished, or click again to retry.";
+  // The anchor's ordinary navigation is the original user gesture. Every native
+  // WebView already opens external target=_blank links in the system browser.
+});
+$("gate-google").addEventListener("keydown", event => {
+  if (event.code === "Space" && $("gate-google").getAttribute("aria-disabled") === "false") {
+    event.preventDefault();
+    $("gate-google").click();
+  }
 });
 $("account-signout").addEventListener("click", () => void run(async () => {
   await flush();
   await request("/account", {body: {action: "sign-out"}});
-  $("gate-google-link").hidden = true;
   showGate({exists: false, authenticated: false, message: "Signed out. Sign in with Google to continue."});
+  await updateStatus();
 }));
 
 // Render only server-authorized aggregate data. Use text nodes, never HTML from the service.

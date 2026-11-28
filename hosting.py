@@ -7,6 +7,8 @@ inside the vault. If a note is trashed or unpublished, its hosted copy is remove
 
 from __future__ import annotations
 
+from secure_transport import verified_opener
+
 import json
 import urllib.error
 import urllib.request
@@ -61,7 +63,7 @@ def _remote(vault: Vault, method: str, path: str, payload: dict[str, Any] | None
     request = urllib.request.Request(config["url"] + path, data=body, method=method, headers={
         "Authorization": "Bearer " + config["key"], "Content-Type": "application/json", "User-Agent": "MemoryMap/30"})
     try:
-        with urllib.request.build_opener(_NoRedirect).open(request, timeout=20) as response:
+        with verified_opener(_NoRedirect).open(request, timeout=20) as response:
             return json.loads(response.read(1024 * 1024) or b"{}")
     except urllib.error.HTTPError as error:
         message = {401: "The publish server rejected the key.", 404: "That hosted page no longer exists.",
