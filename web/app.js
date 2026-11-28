@@ -199,7 +199,10 @@ function gateError(message) {
 }
 
 function showGate({exists, authenticated = state.accountAuthenticated, message = ""}) {
+  const hadAccount = state.accountAuthenticated;
   state.accountAuthenticated = authenticated;
+  if (authenticated || hadAccount) $("gate-google-link").hidden = true;
+  if (!authenticated && hadAccount && !message) message = "Your Google session ended. Sign in again.";
   $("google-gate").hidden = authenticated;
   $("unlock").hidden = !authenticated;
   if (!authenticated && message) $("google-gate-status").textContent = message;
@@ -1068,6 +1071,7 @@ function updatePickers() {
 }
 
 function setView(view) {
+  if (view !== "note") stopVoiceDictation();
   ++state.openSequence;
   state.view = view;
   if (VIEW_FEATURES[view]) track(VIEW_FEATURES[view]);
@@ -3892,8 +3896,7 @@ $("account-signout").addEventListener("click", () => void run(async () => {
   await flush();
   await request("/account", {body: {action: "sign-out"}});
   $("gate-google-link").hidden = true;
-  $("google-gate-status").textContent = "Signed out. Sign in with Google to continue.";
-  showGate({exists: false, authenticated: false});
+  showGate({exists: false, authenticated: false, message: "Signed out. Sign in with Google to continue."});
 }));
 
 // Render only server-authorized aggregate data. Use text nodes, never HTML from the service.

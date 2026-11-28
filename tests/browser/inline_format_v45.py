@@ -140,7 +140,8 @@ def main():
             assert page.locator("#spell-toggle").get_attribute("aria-pressed") != original_spell
             page.locator("#language-menu summary").click()
             expect(page.locator("#spell-toggle")).to_be_hidden()
-            page.locator("#file-menu summary").click()
+            page.locator("#nav-map").click()
+            page.locator("#graph-controls-toggle").click()
             page.locator("#open-feedback").click()
             expect(page.locator("#feedback-dialog")).to_be_visible()
             assert page.locator("#fb-contact").count() == 0
