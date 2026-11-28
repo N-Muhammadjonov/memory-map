@@ -29,6 +29,7 @@ function runWorkspaceFlow(handlers = {}) {
     state, viewer, $: () => element, document: {querySelector: () => null}, inlineMindViews: new Map(),
     dbView: {render() {}}, graph: {resize() {}, startLoop() {}},
     syncPlanningNav() {}, renderTabs() {}, renderHomeView() {}, track() {}, VIEW_FEATURES: {}, syncDetails() {}, renderMindMaps() {},
+    stopVoiceDictation() {},
     async flush() { return true; }, async request() { throw new Error("Unexpected request"); },
     renderEditor(note, historyIndex) { state.note = note; if (historyIndex !== null) state.histIdx = historyIndex; },
     ...handlers,
@@ -40,7 +41,8 @@ test("a delayed note cannot replace a file opened after it", async () => {
   let started;
   const startedRequest = new Promise(resolve => { started = resolve; });
   const delayed = new Promise(resolve => { finish = resolve; });
-  const flow = runWorkspaceFlow({request: () => { started(); return delayed; }});
+  let voiceStopped = 0;
+  const flow = runWorkspaceFlow({request: () => { started(); return delayed; }, stopVoiceDictation: () => { voiceStopped++; }});
   const open = flow.openNote("A");
   await startedRequest;
   await flow.openFile("B", {id: "file"});
@@ -49,6 +51,7 @@ test("a delayed note cannot replace a file opened after it", async () => {
   assert.equal(flow.state.view, "file");
   assert.equal(flow.viewer.active.file.id, "file");
   assert.equal(flow.state.note, null);
+  assert.equal(voiceStopped, 1);
 });
 
 test("failed history loads preserve the active position and Trash removes every entry for a deleted note", async () => {
