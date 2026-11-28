@@ -25,7 +25,7 @@ async function main() {
       cwd: root, env: {...process.env, PYTHONPATH: root}, encoding: "utf8",
     });
     assert.equal(seed.status, 0, seed.stderr);
-    app = spawn(python, ["app.py", "--vault", vault, "--no-browser"], {cwd: root, stdio: ["ignore", "pipe", "inherit"]});
+    app = spawn(python, ["tests/fixture_app.py", "--vault", vault, "--no-browser"], {cwd: root, stdio: ["ignore", "pipe", "inherit"]});
     const [line] = await new Promise((resolve, reject) => {
       const timeout = setTimeout(() => reject(new Error("The fixture server did not start.")), 8000);
       readline.createInterface({input: app.stdout}).once("line", value => {

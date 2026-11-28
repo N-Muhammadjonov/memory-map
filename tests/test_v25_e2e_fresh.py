@@ -69,7 +69,7 @@ class _FakeServer:
         status = self.vault.status()
         if not status["unlocked"] and self.agent_enabled:
             self.close_agent_access()
-        return status
+        return {**status, "authenticated": True}
 
 
 def http_call(

@@ -7,12 +7,20 @@
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="icon" href="/assets/memory-map.svg" type="image/svg+xml">
   <title>Memory map</title>
-  <link rel="stylesheet" href="/styles.css?v=45">
-  <script type="module" src="/app.js?v=45"></script>
+  <link rel="stylesheet" href="/styles.css?v=46">
+  <script type="module" src="/app.js?v=46"></script>
 </head>
 <body>
   <main class="gate" id="gate">
-    <form class="unlock" id="unlock">
+    <section class="unlock" id="google-gate">
+      <img class="unlock-logo" src="/assets/memory-map.svg" width="76" height="76" alt="">
+      <h1>Memory map</h1>
+      <p>Sign in with Google to access your encrypted local workspace.</p>
+      <button class="primary" type="button" id="gate-google">Sign in with Google</button>
+      <a id="gate-google-link" target="_blank" rel="noopener noreferrer" hidden>Continue to Google ↗</a>
+      <p id="google-gate-status" role="status">Your notes and vault password stay on this device.</p>
+    </section>
+    <form class="unlock" id="unlock" hidden>
       <img class="unlock-logo" src="/assets/memory-map.svg" width="76" height="76" alt="">
       <h1>Memory map</h1>
       <p id="gate-message">Opening your encrypted local vault…</p>
@@ -119,8 +127,31 @@
           <button type="button" id="toggle-split" class="icon-btn" title="Split view: 3D graph and note" aria-label="Split view" aria-pressed="false">◫</button>
           <button type="button" id="toggle-zen" class="icon-btn" title="Focus mode (⌘⇧F)" aria-label="Focus mode" aria-pressed="false">⛶</button>
           <button type="button" id="open-a11y" class="ghost-btn" title="Accessibility & reading settings">Aa</button>
+      <select id="font-size-select" class="compact bubble-font-size" title="Text size (selected text only)" aria-label="Text size">
+        <option value="">Text size</option>
+        <option value="default">Default</option>
+        <option value="8">8 pt</option>
+        <option value="9">9 pt</option>
+        <option value="10">10 pt</option>
+        <option value="11">11 pt</option>
+        <option value="12">12 pt</option>
+        <option value="14">14 pt</option>
+        <option value="16">16 pt</option>
+        <option value="18">18 pt</option>
+        <option value="20">20 pt</option>
+        <option value="22">22 pt</option>
+        <option value="24">24 pt</option>
+        <option value="26">26 pt</option>
+        <option value="28">28 pt</option>
+        <option value="32">32 pt</option>
+        <option value="36">36 pt</option>
+        <option value="48">48 pt</option>
+        <option value="72">72 pt</option>
+      </select>
+          <details class="menu language-menu" id="language-menu"><summary class="ghost-btn" id="language-summary" aria-label="Language and spell check">Language</summary><div class="dropdown">
           <select id="lang-select" class="compact lang-select" aria-label="Language" title="Interface language (EN / UZ / RU / TR / ES / AR)"></select>
           <button type="button" id="spell-toggle" class="ghost-btn" aria-pressed="false" title="English spell check: underlines misspelled words while you write (uses your browser's dictionary)">Spell</button>
+          </div></details>
           <button type="button" id="cycle-theme" class="ghost-btn" title="Theme: Dark / Slate / Paper">Theme</button>
           <button type="button" id="toggle-inspector" class="icon-btn" title="Details panel" aria-label="Details panel" aria-pressed="false">◨</button>
           <button type="button" id="emergency-lock" class="ghost-btn danger" title="Emergency lock (⌘⇧L)">Lock now</button>
@@ -415,27 +446,7 @@
       <button type="button" data-cmd="link" title="Add external link">URL</button>
       <button type="button" data-cmd="wiki" title="Link to a note">[[</button>
       <span class="bubble-sep"></span>
-      <select class="bubble-font-size" title="Text size (selected text only)" aria-label="Text size">
-        <option value="">Size ▾</option>
-        <option value="default">Default</option>
-        <option value="8">8 pt</option>
-        <option value="9">9 pt</option>
-        <option value="10">10 pt</option>
-        <option value="11">11 pt</option>
-        <option value="12">12 pt</option>
-        <option value="14">14 pt</option>
-        <option value="16">16 pt</option>
-        <option value="18">18 pt</option>
-        <option value="20">20 pt</option>
-        <option value="22">22 pt</option>
-        <option value="24">24 pt</option>
-        <option value="26">26 pt</option>
-        <option value="28">28 pt</option>
-        <option value="32">32 pt</option>
-        <option value="36">36 pt</option>
-        <option value="48">48 pt</option>
-        <option value="72">72 pt</option>
-      </select>
+
       <select class="bubble-block-pick" title="Change block type" aria-label="Block type">
         <option value="">Block ▾</option>
         <option value="p">Plain text</option>
@@ -651,8 +662,6 @@
         <select id="fb-kind"><option value="bug" data-i18n="fb-bug">Problem</option><option value="idea" data-i18n="fb-idea">Idea</option><option value="other" data-i18n="fb-other">Other</option></select>
         <label for="fb-message" data-i18n="fb-message">Your message</label>
         <textarea id="fb-message" rows="6" maxlength="2000" required minlength="5"></textarea>
-        <label for="fb-contact" data-i18n="fb-contact">Contact (optional, only if you want an answer)</label>
-        <input id="fb-contact" maxlength="120" autocomplete="off">
         <div class="fb-shot-controls">
           <button type="button" id="fb-capture" class="ghost-btn" data-i18n="fb-capture">Attach screenshot</button>
           <input id="fb-file" type="file" accept="image/png,image/jpeg,image/webp" hidden>
@@ -661,7 +670,7 @@
           <img id="fb-shot-img" alt="Screenshot preview">
           <button type="button" id="fb-shot-clear" class="ghost-btn danger" data-i18n="fb-shot-remove">Remove screenshot</button>
         </div>
-        <p class="plan-meta" data-i18n="fb-note">Your message, optional screenshot and contact are sent with your app version and platform.</p>
+        <p class="plan-meta" data-i18n="fb-note">Your message and optional screenshot are sent with your app version and platform.</p>
         <p id="fb-error" class="error" role="alert" hidden></p>
         <div class="dialog-actions">
           <button type="button" id="fb-cancel" class="ghost-btn" data-i18n="fb-cancel">Cancel</button>
@@ -1036,18 +1045,7 @@
       <div class="dialog-head"><h2 id="account-heading">Memory map account</h2><button type="button" id="account-close" aria-label="Close">×</button></div>
       <p class="agent-sub">Sign in to your online account. Your vault password and notes stay on this device.</p>
       <p id="account-status" role="status"></p>
-      <form id="account-form" hidden>
-        <label for="account-email">Email</label>
-        <input id="account-email" type="email" autocomplete="email" maxlength="254" required>
-        <label for="account-password">Account password</label>
-        <input id="account-password" type="password" autocomplete="current-password" maxlength="128" required>
-        <div class="dialog-actions">
-          <button type="submit" value="register">Create account</button>
-          <button type="submit" value="sign-in" class="primary">Sign in</button>
-        </div>
-        <button type="button" id="account-google">Sign in with Google</button>
-        <a id="account-google-link" target="_blank" rel="noopener noreferrer" hidden>Continue to Google ↗</a>
-      </form>
+
       <button id="account-refresh" type="button">Refresh account status</button>
       <button id="account-signout" type="button" hidden>Sign out</button>
       <button id="account-owner-stats" type="button" class="primary" hidden>Owner statistics</button>

@@ -13,6 +13,8 @@ from pathlib import Path
 from typing import Any
 
 from app import Server
+
+from account_fixture import fixture_account
 from batch1_fixtures import PASSWORD, png, seed
 from portable_archive import restore_snapshot
 from vault import Vault
@@ -27,7 +29,7 @@ class Batch1WorkflowTests(unittest.TestCase):
         cls.vault = Vault(cls.root / "test.xotira")
         cls.vault.unlock(PASSWORD, create=True)
         cls.ids = seed(cls.vault)
-        cls.server = Server(cls.vault, None)
+        cls.server = Server(cls.vault, None, account=fixture_account())
         cls.worker = threading.Thread(target=cls.server.serve_forever,
                                       kwargs={"poll_interval": 0.02}, daemon=True)
         cls.worker.start()

@@ -11,6 +11,7 @@ from pathlib import Path
 
 from agent_api import brain_stats, build_context_pack, export_brain_json, find_unlinked_mentions, search_brain
 from app import STATIC, Server
+from account_fixture import fixture_account
 from vault import Vault
 
 
@@ -78,7 +79,7 @@ class XotiraV6Tests(unittest.TestCase):
         self.assertEqual(len(exported["nodes"]), 3)
 
     def test_append_and_http_agent_api(self) -> None:
-        server = Server(self.vault, None, port=0)
+        server = Server(self.vault, None, account=fixture_account(), port=0)
         thread = threading.Thread(target=server.serve_forever, kwargs={"poll_interval": 0.05}, daemon=True)
         thread.start()
         try:

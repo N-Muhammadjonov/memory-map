@@ -2,3 +2,8 @@
 # Native WebView on Windows/macOS; bundled Qt WebEngine on Linux.
 pywebview==6.2.1; sys_platform == 'darwin' or sys_platform == 'win32'
 PySide6==6.12.0; sys_platform == 'linux'
+
+# Native OS speech on macOS; offline speech recognition on Linux.
+pyobjc-framework-Speech==13.1; sys_platform == 'darwin'
+pyobjc-framework-AVFoundation==13.1; sys_platform == 'darwin'
+vosk==0.3.45; sys_platform == 'linux'

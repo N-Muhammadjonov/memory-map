@@ -10,6 +10,7 @@ import sys
 import tempfile
 from pathlib import Path
 from urllib.request import Request, urlopen
+from urllib.error import HTTPError
 
 PASSWORD = "disposable-binary-smoke-password"
 
@@ -36,17 +37,17 @@ def main() -> None:
 
             for asset in ["/", "/app.js", "/home.js", "/i18n.js", "/inline-format.js", "/styles.css", "/pdf/pdf.mjs", "/vendor/katex.mjs", "/assets/memory-map.svg", "/assets/memory-map-192.png", "/assets/memory-map-512.png"]:
                 assert request(asset)[0] == 200, asset
-            assert json.loads(request("/api/status")[1])["unlocked"] is False
-            assert json.loads(request("/api/create", {"password": PASSWORD})[1])["ok"]
-            result = json.loads(request("/api/notes", {"notes": [{"title": "Smoke fixture", "body": "Encrypted binary test"}]})[1])
-            route = "/api/notes/" + result["ids"][0]
-            assert json.loads(request(route)[1])["body"] == "Encrypted binary test"
-            assert b"Encrypted binary test" not in path.read_bytes()
-            assert json.loads(request("/api/update-settings")[1])["supported"] is True
-            request("/api/lock", {})
-            request("/api/unlock", {"password": PASSWORD})
-            assert json.loads(request(route)[1])["body"] == "Encrypted binary test"
-            print("PASS bundled resources, encrypted vault round trip, and installed update capability")
+            state = json.loads(request("/api/status")[1])
+            assert state["unlocked"] is False and state["authenticated"] is False
+            for route, body in [("/api/create", {"password": PASSWORD}), ("/api/unlock", {"password": PASSWORD}), ("/api/notes", None), ("/api/voice", {"action": "start", "id": "0"*36, "language": "en"})]:
+                try:
+                    request(route, body)
+                    raise AssertionError("Unauthenticated workspace request succeeded: " + route)
+                except HTTPError as error:
+                    assert error.code == 401, (route, error.code)
+            assert not path.exists(), "guest must not create a vault"
+            print("PASS bundled resources and mandatory Google sign-in gate")
+
         finally:
             if os.name == "nt":
                 subprocess.run(["taskkill", "/PID", str(process.pid), "/T", "/F"],

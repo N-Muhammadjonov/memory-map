@@ -12,6 +12,7 @@ from zipfile import ZipFile
 import ai_providers
 from ai.context import configure_visibility
 from app import Server
+from account_fixture import fixture_account
 from vault import Vault
 
 
@@ -22,7 +23,7 @@ class AILoopbackTests(unittest.TestCase):
         self.root = Path(folder.name)
         self.vault = Vault(self.root / "ai.xotira")
         self.vault.unlock("safe test fixture notes", create=True)
-        self.server = Server(self.vault, None, ai_developer=True)
+        self.server = Server(self.vault, None, account=fixture_account(), ai_developer=True)
         thread = threading.Thread(target=self.server.serve_forever, daemon=True)
         thread.start()
         self.addCleanup(self.server.server_close)

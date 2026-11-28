@@ -11,6 +11,8 @@ from pathlib import Path
 from typing import Any
 
 from app import Server
+
+from account_fixture import fixture_account
 from snippet_runner import MAX_OUTPUT, SnippetError, resource, run_snippet
 from vault import Vault
 
@@ -51,7 +53,7 @@ SELECT name FROM produce"""
     def test_http_checks_vault_authentication_and_request_body(self) -> None:
         with tempfile.TemporaryDirectory() as folder:
             vault = Vault(Path(folder) / "test.xotira")
-            with Server(vault, None) as server:
+            with Server(vault, None, account=fixture_account()) as server:
                 thread = threading.Thread(target=server.serve_forever, kwargs={"poll_interval": 0.02}, daemon=True)
                 thread.start()
                 try:

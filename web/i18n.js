@@ -338,7 +338,7 @@ Object.assign(DICT.en, {
   "tour-start": "Guided tour", "tour-skip": "Skip", "tour-prev": "Back", "tour-next": "Next", "tour-done": "Done",
   "fb-capture": "Attach screenshot", "fb-shot-remove": "Remove screenshot",
   "fb-image-error": "Choose a PNG, JPEG or WebP image up to 1 MB.",
-  "fb-note": "Your message, optional screenshot and contact are sent with your app version and platform.",
+  "fb-note": "Your message and optional screenshot are sent with your app version and platform.",
   "db-view-all": "All notes", "db-view-overdue": "Overdue", "db-view-tasks": "My tasks", "db-view-active": "In progress",
   "db-saved-views": "Saved views", "db-view-name-ph": "View name", "db-save-view": "Save view",
   "db-group-label": "Group by", "db-group-none": "No grouping", "db-group-status": "Group by status",
@@ -364,7 +364,7 @@ Object.assign(DICT.uz, {
   "tour-step4-title": "3D grafni oching", "tour-step4-body": "Bog‘langan qaydlar, mavzular va qaydlar orasidagi eng qisqa yo‘lni ko‘ring.",
   "fb-capture": "Skrinshot biriktirish", "fb-shot-remove": "Skrinshotni olib tashlash",
   "fb-image-error": "Hajmi 1 MB gacha bo‘lgan PNG, JPEG yoki WebP rasmni tanlang.",
-  "fb-note": "Xabaringiz, tanlagan skrinshotingiz va aloqa ma’lumotingiz ilova versiyasi va platforma bilan yuboriladi.",
+  "fb-note": "Xabaringiz va tanlagan skrinshotingiz ilova versiyasi va platforma bilan yuboriladi.",
   "db-view-all": "Barcha qaydlar", "db-view-overdue": "Muddati o‘tgan", "db-view-tasks": "Vazifalarim", "db-view-active": "Jarayonda",
   "db-saved-views": "Saqlangan ko‘rinishlar", "db-view-name-ph": "Ko‘rinish nomi", "db-save-view": "Ko‘rinishni saqlash",
   "db-group-label": "Guruhlash", "db-group-none": "Guruhlamaslik", "db-group-status": "Holat bo‘yicha",
@@ -382,10 +382,10 @@ Object.assign(DICT.uz, {
   "graph-shared": "Umumiy teg yoki atamalar — {items}",
 });
 
-DICT.ru["fb-note"] = "Сообщение, выбранный снимок экрана и контакт отправляются вместе с версией приложения и платформой.";
-DICT.tr["fb-note"] = "Mesajınız, seçtiğiniz ekran görüntüsü ve iletişim bilginiz uygulama sürümü ve platformla birlikte gönderilir.";
-DICT.es["fb-note"] = "Tu mensaje, la captura opcional y el contacto se envían junto con la versión de la app y la plataforma.";
-DICT.ar["fb-note"] = "تُرسل رسالتك ولقطة الشاشة الاختيارية ومعلومات الاتصال مع إصدار التطبيق والمنصة.";
+DICT.ru["fb-note"] = "Сообщение и выбранный снимок экрана отправляются вместе с версией приложения и платформой.";
+DICT.tr["fb-note"] = "Mesajınız ve seçtiğiniz ekran görüntüsü uygulama sürümü ve platformla birlikte gönderilir.";
+DICT.es["fb-note"] = "Tu mensaje y la captura opcional se envían junto con la versión de la app y la plataforma.";
+DICT.ar["fb-note"] = "تُرسل رسالتك ولقطة الشاشة الاختيارية مع إصدار التطبيق والمنصة.";
 
 Object.assign(DICT.en, {
   "markup-open": "Annotate", "markup-ink": "Pen", "markup-highlight": "Highlighter", "markup-text": "Text",

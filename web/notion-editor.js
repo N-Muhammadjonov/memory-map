@@ -1116,15 +1116,33 @@ export class NotionEditor {
       this.emit();
       this.updateBubble();
     });
-    const fontPick = this.bubble.querySelector(".bubble-font-size");
+    const fontPick = document.getElementById("font-size-select");
+    let fontRange = null;
+    const captureFontRange = () => {
+      const selection = window.getSelection();
+      fontRange = selection?.rangeCount && !selection.isCollapsed &&
+        this.doc.contains(selection.getRangeAt(0).startContainer) &&
+        this.doc.contains(selection.getRangeAt(0).endContainer)
+        ? selection.getRangeAt(0).cloneRange() : null;
+    };
+    fontPick?.addEventListener("pointerdown", captureFontRange);
+    fontPick?.addEventListener("focus", () => { if (document.activeElement !== fontPick || !fontRange) captureFontRange(); });
+    const captureFontRangeIfSelected = () => {
+      const selection = window.getSelection();
+      if (selection?.rangeCount && !selection.isCollapsed && this.doc.contains(selection.getRangeAt(0).startContainer)) captureFontRange();
+    };
     fontPick?.addEventListener("change", () => {
       if (this.readOnly || !fontPick.value) return;
       const value = fontPick.value === "default" ? null : fontPick.value;
       if (value === null || FONT_SIZE_POINTS.includes(Number(value))) {
-        this.rememberBubbleSelection();
-        this.restoreBubbleSelection();
-        if (applyInlineStyle(this.doc, window.getSelection(), "size", value)) this.emit();
+        captureFontRangeIfSelected();
+        if (fontRange && this.doc.contains(fontRange.startContainer) && this.doc.contains(fontRange.endContainer) && !fontRange.collapsed) {
+          this.bubbleRange = fontRange;
+          this.restoreBubbleSelection();
+          if (applyInlineStyle(this.doc, window.getSelection(), "size", value)) this.emit();
+        }
       }
+      fontRange = null;
       fontPick.value = "";
       this.updateBubble();
     });

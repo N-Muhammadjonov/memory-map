@@ -13,6 +13,7 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from app import Server
+from account_fixture import fixture_account
 from native_shell import run_window
 from vault import Vault
 
@@ -44,7 +45,7 @@ UI_TEST = f"""
 def main() -> None:
     with tempfile.TemporaryDirectory(prefix="memorymap-native-smoke-") as directory:
         vault = Vault(Path(directory) / "fixture.xotira")
-        with Server(vault, None) as server:
+        with Server(vault, None, account=fixture_account()) as server:
             server.telemetry.endpoint = ""
             thread = Thread(target=server.serve_forever, daemon=True)
             thread.start()

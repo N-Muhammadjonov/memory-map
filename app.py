@@ -41,6 +41,7 @@ import settings
 from telemetry import VERSION, Telemetry, check_for_updates
 from update_manager import UpdateManager
 from account_auth import AccountClient
+from voice_service import VoiceService
 from account_transfer import MAX_TRANSFER_PAYLOAD, build_encrypted_transfer_zip, import_encrypted_transfer_zip
 from public_share import (
     configure_note_share,
@@ -192,16 +193,17 @@ def add_markdown(vault: Vault, archive: zipfile.ZipFile, prefix: str = "") -> No
 
 
 class Server(ThreadingHTTPServer):
-    def __init__(self, vault: Vault, backup_dir: Path | None, *, port: int = 0, ai_developer: bool = False) -> None:
+    def __init__(self, vault: Vault, backup_dir: Path | None, *, port: int = 0, ai_developer: bool = False, account: AccountClient | None = None) -> None:
         self.vault = vault
         vault.unpublished_hook = lambda ids: hosting.unhost(vault, ids)
         self.telemetry = Telemetry(vault, os.environ.get("XOTIRA_STATS_URL") or build_config.STATS_URL,
                                    require_consent=build_config.REQUIRE_TELEMETRY_CONSENT)
         self.updater = UpdateManager(default_vault().parent / "updates",
                                      os.environ.get("XOTIRA_GITHUB_REPO") or build_config.GITHUB_REPO, VERSION)
-        self.account = AccountClient(os.environ.get("XOTIRA_AUTH_URL") or build_config.AUTH_URL,
+        self.account = account if account is not None else AccountClient(os.environ.get("XOTIRA_AUTH_URL") or build_config.AUTH_URL,
                                      os.environ.get("XOTIRA_AUTH_KEY") or build_config.AUTH_KEY,
                                      build_config.AUTH_SITE_URL)
+        self.voice = VoiceService()
         self.token = secrets.token_urlsafe(32)
         self.public_cookie_secret = secrets.token_urlsafe(32)
         self.agent_key = secrets.token_urlsafe(24)
@@ -248,13 +250,16 @@ class Server(ThreadingHTTPServer):
         self.agent_proposals.clear()
 
     def session_status(self) -> dict[str, bool]:
+        authenticated = self.account.authorized()
+        if not authenticated and self.vault.cipher is not None:
+            self.vault.lock()
         status = self.vault.status()
         if not status["unlocked"]:
+            self.voice.cancel()
             self.ai.reset()
-            self.account.reset()
         if not status["unlocked"] and self.agent_enabled:
             self.close_agent_access()
-        return status
+        return {**status, "exists": status["exists"] if authenticated else False, "authenticated": authenticated}
 
     def restore_backup_status(self) -> None:
         stored = settings.load(self.vault, "backup_status", {})
@@ -445,7 +450,6 @@ class Handler(BaseHTTPRequestHandler):
             if route == "/account/callback" and self.command == "GET":
                 query = parse_qs(parts.query)
                 with self.server.mutex:
-                    self.server.vault.require_unlocked()
                     self.server.account.finish_google(query.get("nonce", [""])[0], query.get("code", [""])[0])
                 content = b"<!doctype html><html lang='en'><meta charset='utf-8'><title>Memory map</title><h1>Account connected</h1><p>Return to the original Memory map window.</p></html>"
                 self.start_response(200, len(content), "text/html; charset=utf-8")
@@ -468,6 +472,10 @@ class Handler(BaseHTTPRequestHandler):
                         return
             if not api:
                 raise VaultError("Page not found.", 404)
+            if route not in {"/api/status", "/api/account"}:
+                with self.server.mutex:
+                    if not self.server.session_status()["authenticated"]:
+                        raise VaultError("Sign in with Google to continue.", 401)
             query = parse_qs(parts.query)
             if route == "/api/ai/send" and self.command == "POST":
                 body = self.read_json(8192)
@@ -584,6 +592,8 @@ class Handler(BaseHTTPRequestHandler):
                 limit = MAX_MARKUP + 8192
             body = self.read_json(limit) if self.command == "POST" else {}
             with self.server.mutex:
+                if route not in {"/api/status", "/api/account"} and not self.server.session_status()["authenticated"]:
+                    raise VaultError("Sign in with Google to continue.", 401)
                 self.handle_api(route, query, body)
         except (BrokenPipeError, ConnectionResetError, TimeoutError):
             return
@@ -597,11 +607,31 @@ class Handler(BaseHTTPRequestHandler):
         vault = self.server.vault
         post = self.command == "POST"
         if route == "/api/status" and not post:
+            session = self.server.session_status()
+            signed_in = session["authenticated"]
             self.write_json({
-                **self.server.session_status(), "backupError": self.server.backup_error,
-                "lastBackup": self.server.last_backup,
-                "automaticBackup": self.server.backup_dir is not None,
+                **session, "backupError": self.server.backup_error if signed_in else "",
+                "lastBackup": self.server.last_backup if signed_in else "",
+                "automaticBackup": signed_in and self.server.backup_dir is not None,
             })
+            return
+        if route == "/api/account":
+            account = self.server.account
+            if not post:
+                account.authorized()
+                self.write_json(account.status())
+            elif body.get("action") == "google":
+                if account.authorized():
+                    raise VaultError("Sign out before changing accounts.", 409)
+                self.write_json({"url": account.begin_google(self.server.origin)})
+            elif body.get("action") == "sign-out":
+                vault.lock()
+                self.server.voice.cancel()
+                self.server.ai.reset()
+                self.server.close_agent_access()
+                self.write_json(account.sign_out())
+            else:
+                raise VaultError("Sign in with Google to continue.", 401)
             return
         if route == "/api/native-close-ready" and post:
             if not self.server.native_close_pending or type(body.get("ok")) is not bool:
@@ -626,11 +656,11 @@ class Handler(BaseHTTPRequestHandler):
             return
         if route == "/api/lock" and post:
             vault.lock()
+            if voice := getattr(self.server, "voice", None):
+                voice.cancel()
             if ai := getattr(self.server, "ai", None):
                 ai.reset()
             self.server.close_agent_access()
-            if account := getattr(self.server, "account", None):
-                account.reset()
             self.write_json({"ok": True})
             return
         if route.startswith("/api/agent/") and route != "/api/agent/config":
@@ -641,6 +671,27 @@ class Handler(BaseHTTPRequestHandler):
                 self.handle_agent_api(route, query, body)
             return
         vault.require_unlocked(touch=route != "/api/reminders" or post)
+        if route == "/api/voice":
+            voice = self.server.voice
+            identifier = body.get("id", "") if post else query.get("id", [""])[0]
+            action = body.get("action") if post else "status"
+            if action == "start":
+                result = voice.start(identifier, body.get("language"))
+            elif action == "pcm":
+                result = voice.pcm(identifier, body.get("audio"), body.get("rate"))
+            elif action == "finish":
+                voice.finish(identifier)
+                result = voice.status(identifier)
+            elif action == "cancel":
+                if voice.id == identifier:
+                    voice.cancel()
+                result = {"phase": "idle"}
+            elif action == "status":
+                result = voice.status(identifier)
+            else:
+                raise VaultError("Invalid voice action.")
+            self.write_json(result)
+            return
         if route == "/api/touch" and post:
             self.write_json({"ok": True})
             return
@@ -655,19 +706,6 @@ class Handler(BaseHTTPRequestHandler):
             return
         if route == "/api/account/owner-stats" and not post:
             self.write_json(self.server.account.owner_stats())
-            return
-        if route == "/api/account":
-            account = self.server.account
-            if not post:
-                self.write_json(account.status())
-            elif body.get("action") in ("register", "sign-in"):
-                self.write_json(account.email(body.get("email"), body.get("password"), register=body["action"] == "register"))
-            elif body.get("action") == "google":
-                self.write_json({"url": account.begin_google(self.server.origin)})
-            elif body.get("action") == "sign-out":
-                self.write_json(account.sign_out())
-            else:
-                raise VaultError("Choose an account action.")
             return
         if route.startswith("/api/ai/"):
             self.handle_ai_api(route, query, body)
@@ -685,7 +723,7 @@ class Handler(BaseHTTPRequestHandler):
         if route == "/api/feedback" and post:
             self.server.telemetry.feature(None, body.get("lang"))
             self.server.telemetry.send_feedback(
-                body.get("kind"), body.get("message"), body.get("contact", ""), body.get("screenshot", "")
+                body.get("kind"), body.get("message"), "", body.get("screenshot", "")
             )
             self.write_json({"ok": True})
             return
@@ -1284,6 +1322,7 @@ def main() -> None:
                 pass
             finally:
                 with server.mutex:
+                    server.voice.cancel()
                     vault.lock()
     except (VaultError, OSError) as error:
         raise SystemExit(f"Xotira: {error}") from error

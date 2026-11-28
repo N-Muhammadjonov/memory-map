@@ -194,6 +194,18 @@ def _run_qt(url: str, origin: str, loaded: Callable | None, prepare_close: Close
 
     page = WorkspacePage(profile, view)
     view.setPage(page)
+
+    def microphone_permission(permission):
+        # Only this window's loopback origin and only an explicit microphone request.
+        from PySide6.QtWebEngineCore import QWebEnginePermission
+        if (permission.origin().toString().rstrip("/") == origin and
+                permission.permissionType() == QWebEnginePermission.PermissionType.MediaAudioCapture and
+                QMessageBox.question(window, "Microphone access", "Allow Memory map to use your microphone for voice dictation?") == QMessageBox.StandardButton.Yes):
+            permission.grant()
+        else:
+            permission.deny()
+
+    page.permissionRequested.connect(microphone_permission)
     window.signals.script.connect(page.runJavaScript)
     settings = page.settings()
     settings.setAttribute(QWebEngineSettings.WebAttribute.LocalContentCanAccessFileUrls, False)

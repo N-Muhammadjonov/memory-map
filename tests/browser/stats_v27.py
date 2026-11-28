@@ -73,12 +73,12 @@ def main():
             page.locator("#graph-controls-toggle").click()
             page.locator("#open-feedback").click()
             page.locator("#fb-message").fill("The mind map button is hard to find on my phone")
-            page.locator("#fb-contact").fill("@tester")
+            assert page.locator("#fb-contact").count() == 0
             page.locator("#fb-kind").select_option("idea")
             page.locator("#feedback-form button[type=submit]").click()
             page.locator("#feedback-dialog").wait_for(state="hidden")
             items = get("/admin/feedback")["items"]
-            if len(items) != 1 or items[0]["kind"] != "idea" or items[0]["contact"] != "@tester":
+            if len(items) != 1 or items[0]["kind"] != "idea" or items[0]["contact"] != "":
                 failures.append(f"feedback not stored as typed: {items}")
             page.locator("#nav-home").click()
             page.get_by_role("button", name="Send feedback").click()

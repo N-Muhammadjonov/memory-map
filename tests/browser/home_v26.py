@@ -49,7 +49,8 @@ def main():
                 overflow = page.evaluate("document.documentElement.scrollWidth - innerWidth")
                 if overflow > 1:
                     failures.append(f"{label}: Home overflows by {overflow}px")
-                page.locator("#lang-select").select_option("uz", force=True)
+                page.locator("#language-menu summary").click()
+                page.locator("#lang-select").select_option("uz")
                 if "Xayrli" not in page.locator(".home-greeting").inner_text():
                     failures.append(f"{label}: Home did not switch to Uzbek")
                 if errors:

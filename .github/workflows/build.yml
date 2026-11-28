@@ -111,6 +111,14 @@ jobs:
           security import "$cert" -k build.keychain -P "$APPLE_CERT_PASSWORD" -T /usr/bin/codesign
           security set-key-partition-list -S apple-tool:,apple: -s -k ci build.keychain
           security find-identity -v -p codesigning build.keychain
+      - name: Bundle offline English speech model (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          curl --fail --silent --show-error --location --retry 3 https://alphacephei.com/vosk/models/vosk-model-small-en-us-0.15.zip -o "$RUNNER_TEMP/voice.zip"
+          mkdir -p models
+          unzip -q "$RUNNER_TEMP/voice.zip" -d models
+          mv models/vosk-model-small-en-us-0.15 models/voice-en
+          test -f models/voice-en/am/final.mdl
       - run: pyinstaller --noconfirm --clean xotira.spec
       - name: Sign (Windows) when publisher certificate is configured
         if: runner.os == 'Windows' && env.WINDOWS_CERT_BASE64 != ''

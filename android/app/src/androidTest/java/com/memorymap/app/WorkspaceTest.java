@@ -37,7 +37,7 @@ public class WorkspaceTest {
             }
         }
         try {
-            int expected = body != null && "/api/notes".equals(path) ? 201 : 200;
+            int expected = path.startsWith("/api/") && !"/api/status".equals(path) ? 401 : 200;
             int actual = conn.getResponseCode();
             if (actual != expected) {
                 String detail = "";
@@ -53,7 +53,7 @@ public class WorkspaceTest {
                 }
                 fail(path + " returned " + actual + " — " + detail);
             }
-            try (java.io.InputStream in = conn.getInputStream();
+            try (java.io.InputStream in = actual == 401 ? conn.getErrorStream() : conn.getInputStream();
                  java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream()) {
                 byte[] b = new byte[4096];
                 int count;
@@ -81,15 +81,9 @@ public class WorkspaceTest {
             assertTrue(request(location[0],location[1],"/",null).contains("Memory map"));
             assertTrue(request(location[0],location[1],"/api/status",null).contains("false"));
             String body = "{\"password\":\"test-device-vault-password\",\"create\":true,\"confirmation\":\"test-device-vault-password\"}";
-            assertTrue(request(location[0],location[1],"/api/create",body).contains("true"));
-            assertTrue(request(location[0],location[1],"/api/status",null).contains("\"unlocked\": true"));
-            String note = request(location[0],location[1],"/api/notes",
-                "{\"notes\":[{\"title\":\"Emulator fixture\",\"body\":\"Encrypted mobile test\"}]}");
-            String id = new org.json.JSONObject(note).getJSONArray("ids").getString(0);
-            assertTrue(request(location[0],location[1],"/api/notes/"+id,null).contains("Encrypted mobile test"));
-            request(location[0],location[1],"/api/lock","{}");
-            assertTrue(request(location[0],location[1],"/api/unlock",body).contains("true"));
-            assertTrue(request(location[0],location[1],"/api/notes/"+id,null).contains("Encrypted mobile test"));
+            assertTrue(request(location[0],location[1],"/api/create",body).contains("Sign in with Google"));
+            assertTrue(request(location[0],location[1],"/api/unlock",body).contains("Sign in with Google"));
+            assertTrue(request(location[0],location[1],"/api/notes",null).contains("Sign in with Google"));
         } finally { entry.callAttr("stop"); }
         verifyNativeWindow(context);
     }
@@ -128,21 +122,12 @@ public class WorkspaceTest {
             } while (SystemClock.elapsedRealtime() < deadline);
             WebView view = viewRef.get();
             assertNotNull("The launcher must host a WebView, not open a browser activity", view);
-            waitFor(runner, view, "Boolean(document.querySelector('#password:enabled'))");
+            waitFor(runner, view, "Boolean(document.querySelector('#google-gate:not([hidden])'))");
             assertEquals("true", evaluate(runner, view, "location.origin.startsWith('http://127.0.0.1:')"));
             assertEquals("true", evaluate(runner, view, "typeof window.MemoryMapNativeDownloads?.postMessage === 'function'"));
-            evaluate(runner, view, "document.getElementById('password').value='disposable-native-android-password';" +
-                "document.getElementById('confirmation').value='disposable-native-android-password';" +
-                "document.getElementById('unlock-button').click(); true");
-            waitFor(runner, view, "Boolean(document.querySelector('#workspace:not([hidden])'))");
-            evaluate(runner, view, "document.getElementById('create-note').click(); true");
-            waitFor(runner, view, "Boolean(document.querySelector('#create-dialog[open]'))");
-            evaluate(runner, view, "document.getElementById('new-title').value='Native Android window fixture';" +
-                "document.getElementById('create-form').requestSubmit(); true");
-            waitFor(runner, view, "!document.querySelector('#create-dialog[open]')");
+            assertEquals("true", evaluate(runner, view, "typeof window.MemoryMapNativeVoice?.postMessage === 'function'"));
+            assertEquals("true", evaluate(runner, view, "document.getElementById('workspace').hidden && document.getElementById('unlock').hidden"));
             assertFalse("The native launcher must remain open", activity.isFinishing());
-            String[] launch = VaultService.url.split("/#", 2);
-            assertTrue(request(launch[0], launch[1], "/api/graph", null).contains("Native Android window fixture"));
         } finally {
             runner.runOnMainSync(activity::finish);
             context.stopService(new Intent(context, VaultService.class));

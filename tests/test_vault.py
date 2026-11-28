@@ -21,7 +21,7 @@ SECRET_FILE = b"Unique attachment content for tests."
 
 class LocalApp:
     def __init__(self, vault: Path, backup_dir: Path | None = None) -> None:
-        command = [sys.executable, str(ROOT / "app.py"), "--no-browser", "--vault", str(vault)]
+        command = [sys.executable, str(ROOT / "tests" / "fixture_app.py"), "--no-browser", "--vault", str(vault)]
         if backup_dir:
             command.extend(["--backup-dir", str(backup_dir)])
         self.command = command
@@ -80,6 +80,7 @@ class LocalApp:
 class VaultLifecycleTest(unittest.TestCase):
     def test_manual_backup_does_not_suppress_the_automatic_snapshot(self) -> None:
         from app import Server
+        from account_fixture import fixture_account
         from vault import Vault
 
         with tempfile.TemporaryDirectory() as directory:
@@ -88,7 +89,7 @@ class VaultLifecycleTest(unittest.TestCase):
             automatic.mkdir()
             vault = Vault(root / "main.xotira")
             vault.unlock(PASSWORD, create=True)
-            with Server(vault, automatic) as server:
+            with Server(vault, automatic, account=fixture_account()) as server:
                 vault.backup(root / "manual.xotira")
                 server.record_backup()
                 server.service_actions()

@@ -17,6 +17,8 @@ from urllib.parse import urlencode
 from zipfile import ZipFile
 
 from app import Server
+
+from account_fixture import fixture_account
 from batch1_fixtures import png
 from portable_archive import restore_snapshot
 from vault import Vault
@@ -29,7 +31,7 @@ class FreshWorkspaceTests(unittest.TestCase):
         directory = tempfile.TemporaryDirectory()
         self.addCleanup(directory.cleanup)
         self.root = Path(directory.name)
-        self.server = Server(Vault(self.root / "fresh.xotira"), None)
+        self.server = Server(Vault(self.root / "fresh.xotira"), None, account=fixture_account())
         worker = threading.Thread(target=self.server.serve_forever, kwargs={"poll_interval": 0.02}, daemon=True)
         worker.start()
         self.addCleanup(self.server.server_close)

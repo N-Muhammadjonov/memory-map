@@ -16,6 +16,7 @@ from zipfile import ZipFile
 
 from agent_api import build_context_pack, search_brain
 from app import Server
+from account_fixture import fixture_account
 from brain_sdk import XotiraBrain
 from portable_archive import SNAPSHOT, restore_snapshot
 from vault import Vault, VaultError
@@ -37,7 +38,7 @@ class FoundationTests(unittest.TestCase):
         ])
 
     def serve(self) -> Server:
-        server = Server(self.vault, None)
+        server = Server(self.vault, None, account=fixture_account())
         threading.Thread(target=server.serve_forever, kwargs={"poll_interval": 0.03}, daemon=True).start()
         self.addCleanup(server.server_close)
         self.addCleanup(server.shutdown)

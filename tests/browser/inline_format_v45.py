@@ -67,6 +67,11 @@ def main():
             assert marked(page,"blue")==[]
             assert marked(page,"green")==["b","a"]
             expect(page.locator(".notion-doc p").first).to_have_text("Alpha beta gamma")
+            expect(page.locator("#font-size-select")).to_be_visible()
+            assert page.locator("#bubble-bar #font-size-select").count() == 0
+            page.click("#title")
+            page.locator("#font-size-select").select_option("72")
+            assert sized(page,72)==[]
             select_chars(page,11,16)
             page.locator('.bubble-font-size').select_option('24')
             assert sized(page,24)==["gamma"], sized(page,24)
@@ -115,6 +120,31 @@ def main():
               const result={paragraphs:root.querySelectorAll('p').length,marks:[...root.querySelectorAll('mark')].map(m=>m.textContent).join(''),bold:root.querySelector('strong').textContent,roundtrip:restored.textContent,preview:preview.querySelector('[data-mm-size="24"] mark[data-hl="blue"] strong')?.textContent};root.remove();return result;
             }""")
             assert result=={"paragraphs":2,"marks":"rst linesec","bold":"first","roundtrip":"first linesecond tail","preview":"sample"},result
+            # All sidebar content shares one scroll container, not just the notes list.
+            page.set_viewport_size({"width":1280,"height":390})
+            scroll = page.locator(".library").evaluate("""el => {
+                const nav = el.querySelector(".side-nav");
+                const before = nav.getBoundingClientRect().top;
+                el.scrollTop = el.scrollHeight;
+                return {outer: el.scrollTop, moved: before - nav.getBoundingClientRect().top,
+                        notes: getComputedStyle(el.querySelector(".notes")).overflowY};
+            }""")
+            assert scroll["outer"] > 0 and scroll["moved"] > 0 and scroll["notes"] == "visible", scroll
+            page.set_viewport_size({"width":1280,"height":800})
+            expect(page.locator("#font-size-select")).to_be_visible()
+            expect(page.locator("#spell-toggle")).to_be_hidden()
+            page.locator("#language-menu summary").click()
+            expect(page.locator("#spell-toggle")).to_be_visible()
+            original_spell = page.locator("#spell-toggle").get_attribute("aria-pressed")
+            page.locator("#spell-toggle").click()
+            assert page.locator("#spell-toggle").get_attribute("aria-pressed") != original_spell
+            page.locator("#language-menu summary").click()
+            expect(page.locator("#spell-toggle")).to_be_hidden()
+            page.locator("#file-menu summary").click()
+            page.locator("#open-feedback").click()
+            expect(page.locator("#feedback-dialog")).to_be_visible()
+            assert page.locator("#fb-contact").count() == 0
+            page.locator("#fb-cancel").click()
             browser.close()
             print("PASS exact selected size/highlight, nested and multi-block formatting, persistence, preview, double-space exit")
     finally:

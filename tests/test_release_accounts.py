@@ -61,7 +61,7 @@ class AccountTests(unittest.TestCase):
     def setUp(self):
         self.calls = []
         self.result = {"user": {"id": "synthetic-user", "email": "test@example.invalid",
-                                "email_confirmed_at": "2026-01-01"}, "access_token": "synthetic-token"}
+                                "email_confirmed_at": "2026-01-01", "app_metadata": {"provider": "google"}}, "access_token": "synthetic-token", "refresh_token": "synthetic-refresh", "expires_in": 3600}
         def transport(path, data, token=""):
             self.calls.append((path, data, token))
             return self.result

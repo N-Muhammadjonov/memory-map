@@ -1,6 +1,7 @@
 """Browser regression for server-authorized owner statistics with synthetic accounts."""
 import os
 from pathlib import Path
+from urllib.parse import parse_qs, urlsplit
 import sys
 import tempfile
 from threading import Thread
@@ -17,10 +18,11 @@ REGULAR = "regular-fixture@example.invalid"
 
 
 def fixture_transport(path, body, token=""):
-    if path.startswith("token?"):
-        email = body["email"]
-        return {"user": {"id": email, "email": email, "email_confirmed_at": "2026-01-01"},
-                "access_token": "test-owner-token" if email == OWNER else "test-regular-token"}
+    if path.startswith("token?grant_type=pkce"):
+        email = body["auth_code"]
+        return {"user": {"id": email, "email": email, "email_confirmed_at": "2026-01-01", "app_metadata": {"provider": "google"}},
+                "access_token": "test-owner-token" if email == OWNER else "test-regular-token",
+                "refresh_token": "synthetic", "expires_in": 3600}
     return {}
 
 
@@ -37,7 +39,7 @@ def main():
             usage_transport=lambda token: {"installs": 5, "active": {"today": 3, "last7": 4, "last30": 5},
                                            "platforms": [{"name": "macos", "installs": 3}],
                                            "feedbackCount": 0, "features": [{"name": "graph", "installs": 3}]},
-            providers_transport=lambda: {"external": {"google": False}},
+            providers_transport=lambda: {"external": {"google": True}},
         )
         thread = Thread(target=server.serve_forever, daemon=True)
         thread.start()
@@ -48,24 +50,30 @@ def main():
                 errors = []
                 page.on("pageerror", lambda error: errors.append(str(error)))
                 page.goto(server.origin + "/#" + server.token)
-                page.locator("#password:enabled").wait_for()
-                page.fill("#password", PASSWORD)
-                page.fill("#confirmation", PASSWORD)
-                page.click("#unlock-button")
-                page.wait_for_selector("#workspace:not([hidden])")
-                page.locator("#file-menu summary").click()
-                page.locator("#open-account").click()
-                expect(page.locator("#account-dialog")).to_be_visible()
-                expect(page.locator("#account-google")).to_be_disabled()
-                expect(page.locator("#account-owner-stats")).to_be_hidden()
+                expect(page.locator("#google-gate")).to_be_visible()
+                expect(page.locator("#workspace")).to_be_hidden()
                 for email in (REGULAR, OWNER):
-                    page.fill("#account-email", email)
-                    page.fill("#account-password", PASSWORD)
-                    page.locator("#account-form button[value=sign-in]").click()
+                    page.click("#gate-google")
+                    link = page.locator("#gate-google-link")
+                    expect(link).to_be_visible()
+                    callback = parse_qs(urlsplit(link.get_attribute("href")).query)["redirect_to"][0]
+                    response = page.request.get(callback + "&code=" + email)
+                    assert response.ok, response.text()
+                    page.locator("#unlock:not([hidden]) #password:enabled").wait_for()
+                    page.fill("#password", PASSWORD)
+                    if email == REGULAR:
+                        page.fill("#confirmation", PASSWORD)
+                    page.click("#unlock-button")
+                    page.wait_for_selector("#workspace:not([hidden])")
+                    page.locator("#file-menu summary").click()
+                    page.locator("#open-account").click()
+                    expect(page.locator("#account-dialog")).to_be_visible()
                     expect(page.locator("#account-status")).to_contain_text(email)
                     if email == REGULAR:
                         expect(page.locator("#account-owner-stats")).to_be_hidden()
                         page.click("#account-signout")
+                        expect(page.locator("#google-gate")).to_be_visible()
+                        expect(page.locator("#workspace")).to_be_hidden()
                     else:
                         expect(page.locator("#account-owner-stats")).to_be_visible()
                         page.click("#account-owner-stats")

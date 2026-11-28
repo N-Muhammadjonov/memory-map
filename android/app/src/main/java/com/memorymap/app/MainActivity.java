@@ -29,6 +29,7 @@ public final class MainActivity extends Activity {
     private WebView workspace;
     private String origin;
     private NativeDownloads downloads;
+    private NativeVoice voice;
     private ValueCallback<Uri[]> fileCallback;
 
     @Override public void onCreate(Bundle state) {
@@ -136,12 +137,19 @@ public final class MainActivity extends Activity {
         });
         if (WebViewFeature.isFeatureSupported(WebViewFeature.WEB_MESSAGE_LISTENER)) {
             downloads = new NativeDownloads(this, workspace, origin);
+            voice = new NativeVoice(this, workspace, origin);
         }
         workspace.setDownloadListener((link, agent, disposition, mime, size) ->
             Toast.makeText(this, "Use the in-app download action. Update Android System WebView if saving is unavailable.", Toast.LENGTH_LONG).show());
         root.removeAllViews();
         root.addView(workspace, new FrameLayout.LayoutParams(-1, -1));
         workspace.loadUrl(url);
+    }
+
+    @Override public void onRequestPermissionsResult(int request, String[] permissions, int[] results) {
+        super.onRequestPermissionsResult(request, permissions, results);
+        if (request == NativeVoice.PERMISSION && voice != null)
+            voice.permissionResult(results.length > 0 && results[0] == android.content.pm.PackageManager.PERMISSION_GRANTED);
     }
 
     @Override protected void onActivityResult(int request, int result, Intent data) {
@@ -171,6 +179,7 @@ public final class MainActivity extends Activity {
         if (fileCallback != null) fileCallback.onReceiveValue(null);
         fileCallback = null;
         if (downloads != null) downloads.destroy();
+        if (voice != null) voice.destroy();
         if (workspace != null) {
             root.removeView(workspace);
             workspace.stopLoading();

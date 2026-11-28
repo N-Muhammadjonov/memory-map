@@ -11,6 +11,8 @@ from pathlib import Path
 from zipfile import ZipFile
 
 from app import Server
+
+from account_fixture import fixture_account
 from mind_map import new_map
 from vault import Vault, VaultError
 
@@ -123,7 +125,7 @@ class MindMapTests(unittest.TestCase):
         self.assertEqual(self.vault.get_note(note_id)["title"], "Research")
 
     def test_http_create_import_and_portable_export(self) -> None:
-        server = Server(self.vault, None)
+        server = Server(self.vault, None, account=fixture_account())
         thread = threading.Thread(target=server.serve_forever, daemon=True)
         thread.start()
 

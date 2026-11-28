@@ -50,6 +50,7 @@ try {
 }
 
 const state = {
+  accountAuthenticated: false,
   unlocked: false, exists: false, note: null, dirty: false,
   editVersion: 0, saving: null, timer: 0, searchTimer: 0,
   refreshSequence: 0, openSequence: 0, lastTouch: 0,
@@ -197,7 +198,11 @@ function gateError(message) {
   $("gate-error").hidden = !message;
 }
 
-function showGate({exists, message = ""}) {
+function showGate({exists, authenticated = state.accountAuthenticated, message = ""}) {
+  state.accountAuthenticated = authenticated;
+  $("google-gate").hidden = authenticated;
+  $("unlock").hidden = !authenticated;
+  if (!authenticated && message) $("google-gate-status").textContent = message;
   state.unlocked = false;
   state.session++;
   state.saving = null;
@@ -322,6 +327,7 @@ async function request(path, options = {}) {
   });
   if (!response.ok) {
     const payload = await response.json().catch(() => ({}));
+    if (response.status === 401 && payload.error === "Sign in with Google to continue." && session === state.session) showGate({exists: false, authenticated: false, message: payload.error});
     if (response.status === 423 && state.unlocked && session === state.session) showGate({exists: true});
     throw Object.assign(new Error(payload.error || `Action failed (${response.status}).`), {status: response.status});
   }
@@ -835,7 +841,7 @@ $("feedback-form")?.addEventListener("submit", event => {
   void run(async () => {
     try {
       await request("/feedback", {body: {kind: $("fb-kind").value, message: $("fb-message").value,
-        contact: $("fb-contact").value, lang: document.documentElement.lang, screenshot: fbScreenshot}});
+        lang: document.documentElement.lang, screenshot: fbScreenshot}});
       $("fb-message").value = "";
       setFeedbackScreenshot("");
       $("feedback-dialog").close();
@@ -2060,8 +2066,9 @@ async function download(path, fallback, saveFirst = true) {
 
 async function updateStatus() {
   const metadata = await request("/status");
+  if (metadata.authenticated !== state.accountAuthenticated) { showGate(metadata); return metadata; }
   if (!state.unlocked) return metadata;
-  if (!metadata.unlocked) { showGate({exists: metadata.exists}); return metadata; }
+  if (!metadata.unlocked) { showGate(metadata); return metadata; }
   const changed = state.lastBackup !== metadata.lastBackup;
   state.lastBackup = metadata.lastBackup;
   const backupTime = state.lastBackup ? new Date(state.lastBackup).toLocaleString() : "";
@@ -2947,7 +2954,7 @@ $("folder-input").addEventListener("change", () => {
 const fileMenu = $("file-menu");
 const stageBar = fileMenu.closest(".stage-bar");
 const compactActions = $("compact-actions");
-const workspaceActions = ["focus-timer", "toggle-split", "toggle-zen", "cycle-theme", "open-a11y", "lang-select", "spell-toggle", "toggle-inspector"].map($).filter(Boolean);
+const workspaceActions = ["focus-timer", "toggle-split", "toggle-zen", "cycle-theme", "open-a11y", "language-menu", "toggle-inspector"].map($).filter(Boolean);
 let compactMode;
 function placeWorkspaceActions() {
   const width = stageBar.clientWidth;
@@ -2969,7 +2976,7 @@ placeWorkspaceActions();
 
 fileMenu.addEventListener("click", event => {
   const action = event.target.closest(".dropdown button");
-  if (!action) return;
+  if (!action || action.closest("#language-menu")) return;
   fileMenu.open = false;
   if (compactActions.contains(action) && document.activeElement === action) fileMenu.querySelector("summary").focus();
 });
@@ -3141,7 +3148,7 @@ async function initialize() {
     if (metadata.unlocked) await showWorkspace();
     else showGate(metadata);
   } catch (err) { showGate({exists: true, message: err.message}); }
-  setInterval(() => { if (state.unlocked && !state.folderImport) void run(updateStatus); }, 3_000);
+  setInterval(() => { if (!state.folderImport) void run(updateStatus); }, 3_000);
   setInterval(() => { if (state.unlocked && !document.hidden && !state.folderImport) void run(refreshReminders); }, 15_000);
   document.addEventListener("visibilitychange", () => {
     if (state.unlocked && !document.hidden) void run(refreshReminders);
@@ -3400,7 +3407,9 @@ if (langSelect) {
   for (const item of LANGUAGES) langSelect.append(new Option(item.label, item.code));
   const initialLang = applyLanguage(getSavedLanguage());
   langSelect.value = initialLang;
-  langSelect.addEventListener("change", () => applyLanguage(langSelect.value));
+  const labelLanguage = () => { $("language-summary").textContent = langSelect.selectedOptions[0]?.textContent + " ▾"; };
+  labelLanguage();
+  langSelect.addEventListener("change", () => { applyLanguage(langSelect.value); labelLanguage(); });
   window.addEventListener("xotira-lang-change", () => {
     renderTimer();
     updateWordGoalBadge();
@@ -3600,48 +3609,117 @@ $("word-goal-btn")?.addEventListener("click", () => {
 $("body")?.addEventListener("input", updateWordGoalBadge);
 $("notion-editor")?.addEventListener("input", updateWordGoalBadge);
 
-let speechRec = null;
-function stopVoiceDictation() {
-  if (!speechRec) return;
-  try { speechRec.stop(); } catch {}
-  speechRec = null;
-  $("voice-note")?.setAttribute("aria-pressed", "false");
+let voiceSession = null;
+const voiceLocales = {en:"en-US", uz:"uz-UZ", ru:"ru-RU", tr:"tr-TR", es:"es-ES", ar:"ar-SA"};
+
+function closeVoiceAudio(session) {
+  clearInterval(session.poll);
+  clearTimeout(session.timeout);
+  session.processor?.disconnect();
+  session.source?.disconnect();
+  session.stream?.getTracks().forEach(track => track.stop());
+  if (session.context) void session.context.close().catch(() => {});
 }
-$("voice-note")?.addEventListener("click", () => {
-  const btn = $("voice-note");
-  if (speechRec) {
+function stopVoiceDictation() {
+  const session = voiceSession;
+  if (!session) return;
+  voiceSession = null;
+  closeVoiceAudio(session);
+  $("voice-note")?.setAttribute("aria-pressed", "false");
+  if (session.android) window.MemoryMapNativeVoice.postMessage(JSON.stringify({id:session.id, action:"cancel"}));
+  else void request("/voice", {body:{id:session.id, action:"cancel"}}).catch(() => {});
+}
+function voiceResult(session, data) {
+  if (voiceSession !== session || state.note?.id !== session.note || !state.unlocked) return;
+  if (data.phase === "starting") status("Starting microphone… allow microphone and speech recognition access if prompted.");
+  else if (data.phase === "listening") status(data.partial ? "Listening… " + data.partial : "Listening… speak to dictate into this note.");
+  else if (data.phase === "processing") status("Recognizing speech…");
+  else if (data.phase === "done" || data.phase === "error" || data.phase === "idle") {
+    const text = String(data.text || "").trim();
     stopVoiceDictation();
-    status("Voice dictation stopped.");
-    return;
+    if (text) {
+      const current = $("body").value;
+      const next = current ? current + "\n\n" + text : text;
+      $("body").value = next;
+      if (!state.sourceMode) notionEditor.setValue(next, false);
+      scheduleSave();
+      updateWordGoalBadge();
+      status("Voice text added.");
+    } else status(data.message || "No speech was recognized. Try again.", true);
   }
-  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!SR) {
-    status("Voice dictation requires Chrome, Edge, or Safari SpeechRecognition support.", true);
-    return;
-  }
-  if (!state.note || state.note.trashed) {
-    status("Open an active note before starting voice dictation.", true);
-    return;
-  }
-  speechRec = new SR();
-  speechRec.continuous = true;
-  speechRec.interimResults = false;
-  speechRec.lang = document.documentElement.lang === "uz" ? "uz-UZ" : (document.documentElement.lang || "en-US");
-  speechRec.onresult = event => {
-    const transcript = Array.from(event.results).slice(event.resultIndex).map(r => r[0].transcript).join(" ").trim();
-    if (!transcript || !state.note) return;
-    const current = $("body").value;
-    const next = current ? `${current}\n\n${transcript}` : transcript;
-    $("body").value = next;
-    if (!state.sourceMode) notionEditor.setValue(next, false);
-    scheduleSave();
-    updateWordGoalBadge();
+}
+async function captureLinuxAudio(session) {
+  if (!navigator.mediaDevices?.getUserMedia) throw new Error("Microphone capture is unavailable in this WebView.");
+  const stream = await navigator.mediaDevices.getUserMedia({audio: {channelCount:1}, video:false});
+  if (voiceSession !== session) { stream.getTracks().forEach(track => track.stop()); return; }
+  session.stream = stream;
+  const Audio = window.AudioContext || window.webkitAudioContext;
+  session.context = new Audio();
+  await session.context.resume();
+  session.source = session.context.createMediaStreamSource(stream);
+  session.processor = session.context.createScriptProcessor(4096, 1, 1);
+  session.processor.onaudioprocess = event => {
+    if (voiceSession !== session || session.sending || session.finishing) return;
+    const samples = event.inputBuffer.getChannelData(0);
+    const buffer = new ArrayBuffer(samples.length * 2);
+    const bytes = new DataView(buffer);
+    for (let i = 0; i < samples.length; i++) bytes.setInt16(2*i, Math.max(-1, Math.min(1, samples[i])) * 32767, true);
+    const encoded = btoa(String.fromCharCode(...new Uint8Array(buffer)));
+    session.sending = true;
+    void request("/voice", {body:{action:"pcm", id:session.id, audio:encoded, rate:session.context.sampleRate}})
+      .then(data => voiceResult(session, data)).catch(error => voiceResult(session, {phase:"error", message:error.message}))
+      .finally(() => { session.sending = false; });
   };
-  speechRec.onerror = () => { speechRec = null; btn.setAttribute("aria-pressed", "false"); };
-  speechRec.onend = () => { speechRec = null; btn.setAttribute("aria-pressed", "false"); };
-  speechRec.start();
-  btn.setAttribute("aria-pressed", "true");
-  status("Listening… speak to dictate into this note.");
+  session.source.connect(session.processor);
+  const silent = session.context.createGain();
+  silent.gain.value = 0;
+  session.processor.connect(silent);
+  silent.connect(session.context.destination);
+}
+$("voice-note")?.addEventListener("click", async () => {
+  if (voiceSession) {
+    const session = voiceSession;
+    session.finishing = true;
+    if (session.android) {
+      window.MemoryMapNativeVoice.postMessage(JSON.stringify({id:session.id, action:"finish"}));
+    } else {
+      try { voiceResult(session, await request("/voice", {body:{id:session.id, action:"finish"}})); }
+      catch (error) { voiceResult(session, {phase:"error", message:error.message}); }
+    }
+    return;
+  }
+  if (!state.unlocked || !state.note || state.note.trashed || state.note.locked) {
+    status("Open an editable note to dictate.", true);
+    return;
+  }
+  const language = voiceLocales[document.documentElement.lang] ? document.documentElement.lang : "en";
+  const session = {id:crypto.randomUUID(), note:state.note.id, android:Boolean(window.MemoryMapNativeVoice)};
+  voiceSession = session;
+  $("voice-note").setAttribute("aria-pressed", "true");
+  status("Starting microphone… your device's speech service may process audio.");
+  session.timeout = setTimeout(() => voiceResult(session, {phase:"error", message:"Speech recognition timed out. Check the microphone and try again."}), 95_000);
+  if (session.android) {
+    window.MemoryMapNativeVoice.onmessage = event => {
+      try { const data = JSON.parse(event.data); if (data.id === session.id) voiceResult(session, data); } catch {}
+    };
+    window.MemoryMapNativeVoice.postMessage(JSON.stringify({id:session.id, action:"start", locale:voiceLocales[language]}));
+    return;
+  }
+  try {
+    const data = await request("/voice", {body:{id:session.id, action:"start", language}});
+    voiceResult(session, data);
+    if (voiceSession !== session) return;
+    if (data.mode === "pcm") await captureLinuxAudio(session);
+    session.poll = setInterval(async () => {
+      if (voiceSession !== session || session.polling || session.finishing) return;
+      session.polling = true;
+      try { voiceResult(session, await request("/voice?id=" + session.id)); }
+      catch (error) { voiceResult(session, {phase:"error", message:error.message}); }
+      finally { session.polling = false; }
+    }, 400);
+  } catch (error) {
+    voiceResult(session, {phase:"error", message:error.name === "NotAllowedError" ? "Microphone access denied. Allow it and try again." : error.message});
+  }
 });
 
 void initialize();
@@ -3786,51 +3864,37 @@ $("note-lock-form")?.addEventListener("submit", event => {
 
 // Online identity is separate from the encrypted vault.
 function showAccount(data) {
-  $("account-status").textContent = !data.configured ? "Online accounts are not configured yet."
-    : data.user?.email ? "Signed in as " + data.user.email : data.message || "Sign in or create an account.";
-  $("account-form").hidden = !data.configured || Boolean(data.user?.email);
-  $("account-signout").hidden = !data.user?.email;
-  $("account-google").disabled = !data.configured || data.googleAvailable === false;
-  $("account-google").title = data.googleAvailable === true ? "" : data.googleAvailable === false
-    ? "Google sign-in is not enabled on the account service yet."
-    : "Could not verify provider availability. You can still try the official sign-in page.";
+  $("account-status").textContent = data.user?.email ? "Signed in as " + data.user.email : "Sign in with Google.";
+  $("account-signout").hidden = !data.authenticated;
   $("account-owner-stats").hidden = data.owner !== true;
-  $("account-refresh").hidden = !data.configured;
-  if (data.user?.email) $("account-google-link").hidden = true;
 }
 async function refreshAccount() { showAccount(await request("/account")); }
 $("open-account").addEventListener("click", () => void run(async () => {
   $("file-menu").open = false;
-  $("account-google-link").hidden = true;
   await refreshAccount();
   $("account-dialog").showModal();
 }));
 $("account-close").addEventListener("click", () => $("account-dialog").close());
-$("account-dialog").addEventListener("close", () => {
-  $("account-password").value = "";
-  $("account-google-link").hidden = true;
-});
 $("account-refresh").addEventListener("click", () => void run(refreshAccount));
-$("account-form").addEventListener("submit", event => {
-  event.preventDefault();
-  const action = event.submitter?.value;
-  const email = $("account-email").value;
-  const password = $("account-password").value;
-  $("account-password").value = "";
-  void run(async () => {
-    try { showAccount(await request("/account", {body: {action, email, password}})); }
-    catch (error) { $("account-status").textContent = error.message; }
-  });
+$("gate-google").addEventListener("click", async () => {
+  const button = $("gate-google");
+  button.disabled = true;
+  try {
+    const data = await request("/account", {body: {action: "google"}});
+    const link = $("gate-google-link");
+    link.href = data.url;
+    link.hidden = false;
+    $("google-gate-status").textContent = "Open Continue to Google, then return to this window after signing in.";
+  } catch (error) { $("google-gate-status").textContent = error.message; }
+  finally { button.disabled = false; }
 });
-$("account-google").addEventListener("click", () => void run(async () => {
-  const data = await request("/account", {body: {action: "google"}});
-  const link = $("account-google-link");
-  link.href = data.url;
-  link.hidden = false;
-  $("account-status").textContent = "Open the Google sign-in page, then return here and refresh the account status.";
+$("account-signout").addEventListener("click", () => void run(async () => {
+  await flush();
+  await request("/account", {body: {action: "sign-out"}});
+  $("gate-google-link").hidden = true;
+  $("google-gate-status").textContent = "Signed out. Sign in with Google to continue.";
+  showGate({exists: false, authenticated: false});
 }));
-$("account-signout").addEventListener("click", () => void run(async () =>
-  showAccount(await request("/account", {body:{action:"sign-out"}}))));
 
 // Render only server-authorized aggregate data. Use text nodes, never HTML from the service.
 let ownerStatsSequence = 0;

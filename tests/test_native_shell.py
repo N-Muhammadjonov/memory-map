@@ -7,6 +7,8 @@ from urllib.request import Request, urlopen
 from unittest.mock import patch
 
 from app import Server
+
+from account_fixture import fixture_account
 from native_shell import NativeWindowError, external_url, local_origin, run_window
 from vault import Vault
 
@@ -33,7 +35,7 @@ class NativeWindowTests(unittest.TestCase):
     def test_close_requires_authenticated_editor_save_confirmation(self):
         with tempfile.TemporaryDirectory() as directory:
             vault = Vault(Path(directory) / "close-test.xotira")
-            with Server(vault, None) as server:
+            with Server(vault, None, account=fixture_account()) as server:
                 server.telemetry.endpoint = ""
                 thread = Thread(target=server.serve_forever, daemon=True)
                 thread.start()

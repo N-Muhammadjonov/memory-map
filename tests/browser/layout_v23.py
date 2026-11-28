@@ -17,7 +17,7 @@ def boot(seed=True):
         result = subprocess.run([sys.executable, os.path.join(ROOT, "tests", "batch1_fixtures.py"), vault], cwd=ROOT,
                                 env={**os.environ, "PYTHONPATH": ROOT}, capture_output=True, text=True)
         assert result.returncode == 0, result.stderr
-    proc = subprocess.Popen([sys.executable, "app.py", "--vault", vault, "--no-browser"], cwd=ROOT,
+    proc = subprocess.Popen([sys.executable, "tests/fixture_app.py", "--vault", vault, "--no-browser"], cwd=ROOT,
                             stdout=subprocess.PIPE, text=True)
     url = re.search(r"http://127\.0\.0\.1:\d+/#\S+", proc.stdout.readline()).group(0)
     return proc, url

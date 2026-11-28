@@ -1,4 +1,4 @@
-"""Optional cloud identity, independent of local encrypted notes."""
+"""Verified Google identity, independent of local encrypted notes."""
 from __future__ import annotations
 
 import base64
@@ -46,6 +46,45 @@ class AccountClient:
         self.oauth: tuple[str, str, float] | None = None
         self.message = ""
         self.is_owner = False
+        self.google_session = False
+        self.refresh_token = ""
+        self.expires_at = 0.0
+
+    def authorized(self) -> bool:
+        if not self.google_session or not self.access_token:
+            return False
+        if time.monotonic() < self.expires_at - 30:
+            return True
+        if self.refresh_token:
+            try:
+                result = self.transport("token?grant_type=refresh_token", {"refresh_token": self.refresh_token})
+                user = result.get("user")
+                if isinstance(user, dict) and user.get("id") == self.user.get("id") and self._accept_google(result):
+                    return True
+            except (VaultError, TypeError, ValueError):
+                pass
+        self.reset()
+        self.message = "Your Google session expired. Sign in again."
+        return False
+
+    def _accept_google(self, result: dict[str, Any]) -> bool:
+        user = result.get("user")
+        metadata = user.get("app_metadata", {}) if isinstance(user, dict) else {}
+        if not isinstance(metadata, dict):
+            return False
+        providers = metadata.get("providers", [])
+        if metadata.get("provider") != "google" and not (isinstance(providers, list) and "google" in providers):
+            return False
+        lifetime = result.get("expires_in")
+        refresh = result.get("refresh_token")
+        if type(lifetime) not in (int, float) or not 30 < lifetime <= 86400 or not isinstance(refresh, str) or not refresh:
+            return False
+        if not self._accept(result):
+            return False
+        self.google_session = True
+        self.refresh_token = refresh
+        self.expires_at = time.monotonic() + lifetime
+        return True
 
     def status(self) -> dict[str, Any]:
         self.is_owner = False
@@ -56,7 +95,7 @@ class AccountClient:
                 # Owner access is never inferred from a local email or cached after a failed check.
                 self.is_owner = False
         return {"configured": self.configured, "user": self.user.copy(),
-                "message": self.message, "owner": self.is_owner,
+                "message": self.message, "owner": self.is_owner, "authenticated": self.google_session,
                 "googleAvailable": self.google_available()}
 
     def _require(self) -> None:
@@ -206,7 +245,7 @@ class AccountClient:
             raise VaultError("Sign-in attempt expired. Start again.", 400)
         self.oauth = None
         result = self.transport("token?grant_type=pkce", {"auth_code": code, "code_verifier": pending[1]})
-        if not self._accept(result):
+        if not self._accept_google(result):
             raise VaultError("Google account could not be verified.", 401)
         return True
 
